@@ -2,8 +2,7 @@ Require Import List.
 Require Import Classical.
 
 (* a convenient representation for interpreting sequents; this is how we'll receive inputs
-   from the external system. Converting backwards is nontrivial, so we'll just parse
-   it out. *)
+   from the external system. *)
 Inductive deduction :=
   | dd : list Prop -> list Prop -> deduction.
 
@@ -14,22 +13,20 @@ Definition denote (s : deduction) : Prop :=
   match s with
     | dd ass con => fold_right and True ass -> fold_right or False con
   end.
-(* The trailing false acts as a sort of bookend, which helps keep us
-from getting confused. But this representation will be kind of annoying
-to manipulate *)
 
 Lemma contrapositive : forall (A B : Prop), (~ B -> ~ A) <-> (A -> B).
   intros; destruct (classic B); tauto.
 Qed.
 
 (* Slightly opaque definition to help us keep track of hypotheses
-versus parametric values *)
+versus parametric values and temporary hypotheses *)
 Definition Hyp (x : Prop) := x.
 
-Ltac conjExplode H :=
-  repeat (let h := fresh in destruct H as [ h H ]; let x := type of h in change (Hyp x) in h); destruct H.
-Ltac negDisjExplode H :=
-  repeat (let h := fresh in apply not_or_and in H; destruct H as [ h H ]; let x := type of h in change (Hyp x) in h); clear H. (* clear, because destruct does the wrong thing *)
+Ltac explode H tac :=
+  repeat (let h := fresh in tac; destruct H as [ h H ]; let x := type of h in change (Hyp x) in h); clear H.
+Ltac conjExplode H := explode H ltac:idtac.
+Ltac negDisjExplode H := explode H ltac:(apply not_or_and in H).
+
 Ltac unwrap := cbv; intro H; conjExplode H.
 
 (* sequent calculus rules *)
@@ -59,10 +56,9 @@ Ltac negImp H :=
     apply not_and_or
   end.
 
-Ltac rollupPositive H :=
+Ltac rollup H tac :=
   repeat match goal with
            | [ H' : Hyp ?P |- _ ] => revert H' end;
-  assert (H : True) by trivial;
   repeat match goal with
            | [ |- _ -> _ ] =>
              let h := fresh in intro h;
@@ -70,37 +66,24 @@ Ltac rollupPositive H :=
              let Ht := type of H in
              let g := fresh in
              assert (ht /\ Ht) as g; [constructor; assumption |];
-             clear H; clear h; rename g into H
+             (* messy *)
+             clear H; clear h; rename g into H; tac
          end;
   unfold Hyp in H;
   revert H.
 
 Ltac posneg :=
   let H := fresh in
-  rollupPositive H;
-  apply contrapositive;
+  assert True as H by trivial;
+  rollup H ltac:idtac;
+  apply -> contrapositive;
   intro H;
   negDisjExplode H.
 
-(* refactor this with rollupPositive *)
-Ltac rollupNegative H :=
-  repeat match goal with
-           | [ H' : Hyp ?P |- _ ] => revert H' end;
-  assert (H : ~ False) by tauto;
-  repeat match goal with
-           | [ |- _ -> _ ] =>
-             let h := fresh in intro h;
-             let ht := type of h in
-             let Ht := type of H in
-             let g := fresh in
-             assert (ht /\ Ht) as g; [constructor; assumption |];
-             clear H; clear h; rename g into H;
-             apply and_not_or in H
-         end; revert H.
-
 Ltac negpos :=
   let H := fresh in
-  rollupNegative H;
+  assert (~ False) as H by tauto;
+  rollup H ltac:(apply and_not_or in H);
   apply <- contrapositive;
   intro H;
   conjExplode H.
