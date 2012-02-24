@@ -29,32 +29,7 @@ Ltac negDisjExplode H := explode H ltac:(apply not_or_and in H).
 
 Ltac unwrap := cbv; intro H; conjExplode H.
 
-(* sequent calculus rules *)
-
-Ltac myExact := fail.
-Ltac myCut := fail.
-
-Ltac negImp H :=
-  match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
-    unfold Hyp in H; apply imply_to_and in H;
-    (* H : H1 /\ ~ H2 *)
-    let H1 := fresh in
-    let H2 := fresh in
-    destruct H as [H1 H2];
-    (* Want to move H1 to the bottom (as a negative); keep H2 up top *)
-    match goal with
-      [ |- ?G ] =>
-        let h := fresh in
-        let T1 := type of H1 in
-        assert (h : ~ T1 \/ G); [|
-          let nH1 := fresh in let G' := fresh in
-          destruct h as [ nH1 | G' ]; [ contradict H1; exact nH1 | exact G' ]
-        ]
-    end;
-    clear H1;
-    let T2 := type of H2 in change (Hyp T2) in H2;
-    apply not_and_or
-  end.
+(* Heavy machinery for handling right-side rules *)
 
 Ltac rollup H tac :=
   repeat match goal with
@@ -90,6 +65,35 @@ Ltac negpos :=
 
 Ltac canonicalize := posneg; negpos.
 
+(* Heavy machinery that will be used to implement right-side rules *)
+
+Ltac negImp H :=
+  match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
+    unfold Hyp in H; apply imply_to_and in H;
+    (* H : H1 /\ ~ H2 *)
+    let H1 := fresh in
+    let H2 := fresh in
+    destruct H as [H1 H2];
+    (* Want to move H1 to the bottom (as a negative); keep H2 up top *)
+    match goal with
+      [ |- ?G ] =>
+        let h := fresh in
+        let T1 := type of H1 in
+        assert (h : ~ T1 \/ G); [|
+          let nH1 := fresh in let G' := fresh in
+          destruct h as [ nH1 | G' ]; [ contradict H1; exact nH1 | exact G' ]
+        ]
+    end;
+    clear H1;
+    let T2 := type of H2 in change (Hyp T2) in H2;
+    apply not_and_or
+  end.
+
+(* actual user visible tactics *)
+
+Ltac myExact := fail.
+Ltac myCut := fail.
+
 (* alternatively, duplicate the hypothesis and only provide fst and snd projection *)
 Ltac lConj H :=
   match type of H with Hyp (_ /\ _) =>
@@ -107,13 +111,13 @@ Ltac lForall H t := fail.
 Ltac lExists H := fail.
 Ltac lDup H := fail.
 
-Ltac rConj := fail.
-Ltac rDisjL := fail.
-Ltac rDisjR := fail.
+Ltac rConj H := fail.
+Ltac rDisjL H := fail.
+Ltac rDisjR H := fail.
 Ltac rImp H := posneg; negImp H; negpos.
-Ltac rForall := fail.
-Ltac rExists t := fail.
-Ltac rDup := fail.
+Ltac rForall H := fail.
+Ltac rExists H t := fail.
+Ltac rDup H := fail.
 
 Section universe.
 
