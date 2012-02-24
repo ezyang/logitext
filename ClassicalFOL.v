@@ -11,7 +11,7 @@ Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..).
 
 Definition denote (s : deduction) : Prop :=
   match s with
-    | dd ass con => fold_right and True ass -> fold_right or False con
+    | dd hyp con => fold_right and True hyp -> fold_right or False con
   end.
 
 Lemma contrapositive : forall (A B : Prop), (~ B -> ~ A) <-> (A -> B).
@@ -21,11 +21,12 @@ Qed.
 (* Slightly opaque definition to help us keep track of hypotheses
 versus parametric values and temporary hypotheses *)
 Definition Hyp (x : Prop) := x.
+Definition Con (x : Prop) := x. (* not used by anyone, here to make the numbering start from 0 *)
 
-Ltac explode H tac :=
-  repeat (let h := fresh in tac; destruct H as [ h H ]; let x := type of h in change (Hyp x) in h); clear H.
-Ltac conjExplode H := explode H ltac:idtac.
-Ltac negDisjExplode H := explode H ltac:(apply not_or_and in H).
+Ltac explode myfresh H tac :=
+  repeat (let h := myfresh idtac in tac; destruct H as [ h H ]; let x := type of h in change (Hyp x) in h); clear H.
+Ltac conjExplode H := explode ltac:(fun _ => fresh "Hyp") H ltac:idtac.
+Ltac negDisjExplode H := explode ltac:(fun _ => fresh "Con") H ltac:(apply not_or_and in H).
 
 Ltac unwrap := cbv; intro H; conjExplode H.
 
@@ -63,7 +64,7 @@ Ltac negpos :=
   intro H;
   conjExplode H.
 
-Ltac canonicalize := posneg; negpos.
+Ltac canonicalize := posneg; negpos; posneg; negpos. (* twice, to prevent the ordering from reversing *)
 
 (* Heavy machinery that will be used to implement right-side rules *)
 
@@ -114,7 +115,7 @@ Ltac lDup H := fail.
 Ltac rConj H := fail.
 Ltac rDisjL H := fail.
 Ltac rDisjR H := fail.
-Ltac rImp H := posneg; negImp H; negpos.
+Ltac rImp H := posneg; negImp H; negpos; posneg; negpos.
 Ltac rForall H := fail.
 Ltac rExists H t := fail.
 Ltac rDup H := fail.
@@ -126,10 +127,10 @@ Variable z : U. (* non-empty domain *)
 Variables A B C : Prop. (* some convenient things to instantiate with *)
 
 (* an example *)
-Goal denote ( [ True; C; C /\ C ] |= [ ((A -> B) -> A) -> A; False ] ).
+Goal denote ( [ True; C /\ C ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
   unwrap.
-  lConj H2.
-  rImp H0.
+  lConj Hyp1.
+  rImp Con3.
 Abort.
 
 End Section.
