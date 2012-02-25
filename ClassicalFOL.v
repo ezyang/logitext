@@ -80,25 +80,43 @@ Ltac canonicalize := posneg; negpos.
 
 (* Heavy machinery that will be used to implement right-side rules *)
 
+(* These tactics help you get rid of negative hypotheses by transforming
+   them into cases of the disjunction. *)
+
+(* XXX don't really know how to refactor dropNeg and dropPos into one function *)
+Ltac dropNeg nH :=
+  (* H : ~ ?T |- ?G *)
+  match type of nH with ~ ?T =>
+  match goal with [ |- ?TG ] =>
+    let x := fresh in
+    cut (T \/ TG);
+    [ let H := fresh in let G := fresh in
+      destruct 1 as [ H | G ]; [ contradict H; exact nH | exact G ]
+    |]
+  end end; clear nH.
+  (* |- ?P \/ ?G *)
+
+Ltac dropPos H :=
+  (* H : ?T |- ~ ?G *)
+  let T := type of H in
+  match goal with [ |- ~ ?TG ] =>
+    cut (~ T \/ ~ TG);
+    [ let nH := fresh in let nG := fresh in
+      destruct 1 as [ nH | nG ]; [ contradict nH; exact H | exact nG ]
+    |]
+  end;
+  clear H;
+  (* |- ~ ?T \/ ~ ?G *)
+  apply not_and_or.
+  (* |- ~ (?T /\ ?G) *)
+
 Ltac negImp H :=
   match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
     unwrap H; apply imply_to_and in H;
     (* H : H1 /\ ~ H2 *)
     let H1 := fresh in let H2 := fresh in
     destruct H as [H1 H2];
-    (* Want to move H1 to the bottom (since it is positive); keep H2 up top *)
-    match goal with
-      [ |- ?G ] =>
-        let h := fresh in
-        let T1 := type of H1 in
-        assert (h : ~ T1 \/ G); [|
-          let nH1 := fresh in let G' := fresh in
-          destruct h as [ nH1 | G' ]; [ contradict H1; exact nH1 | exact G' ]
-        ]
-    end;
-    clear H1;
-    wrap H2;
-    apply not_and_or
+    dropPos H1; wrap H2
   end.
 
 Ltac negDisj H :=
@@ -117,18 +135,28 @@ Ltac myExact H :=
 Ltac myCut := fail.
 
 (* alternatively, duplicate the hypothesis and only provide fst and snd projection *)
+(* ordering is a bit sensitive here. lConj generates a bunch of new labels, so
+   they all get dumped at the beginning of the hypothesis context after a canonicalize;
+   but lDisj doesn't increase in size so no reordering happens. It's unclear what's
+   preferable. *)
 Ltac lConj H :=
   match type of H with Hyp (_ /\ _) =>
-    let h1 := fresh in let h2 := fresh in unwrap H; destruct H as [h1 h2];
-    let t1 := type of h1 in let t2 := type of h2 in change (Hyp t1) in h1; change (Hyp t2) in h2
+    let H1 := fresh in let H2 := fresh in
+    unwrap H; destruct H as [H1 H2]; wrap H1; wrap H2
   end; canonicalize.
-Ltac lDisj H := fail.
-Ltac lImp H := fail.
-(*
-  match type of H with Hyp (?P -> ?Q) =>
-    match goal with [ |- ?G ] =>
-      assert P; *)
-Ltac lBot H := fail.
+Ltac lDisj H :=
+  match type of H with Hyp (_ \/ _) =>
+    unwrap H; destruct H as [H | H]; wrap H
+  end.
+Ltac lImp H :=
+  match type of H with Hyp (?P -> _) =>
+    unwrap H; apply imply_to_or in H; (* ~ _ \/ _ *)
+    destruct H as [H | H]; [ dropNeg H | wrap H ]
+  end.
+Ltac lBot H :=
+  match type of H with Hyp False =>
+    unwrap H; destruct H
+  end.
 Ltac lForall H t := fail.
 Ltac lExists H := fail.
 Ltac lDup H := fail.
@@ -150,17 +178,26 @@ Variable z : U. (* non-empty domain *)
 Variables A B C : Prop. (* some convenient things to instantiate with *)
 
 (* an example *)
-Goal denote ( [ True; C /\ C ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
+Goal denote ( [ True; C /\ C; False \/ True ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
   sequent.
     lConj Hyp1.
+    lDisj Hyp3.
+    lBot Hyp3.
     rImp Con3.
-Abort.
+    lImp Hyp0.
+    rImp Con0.
+    myExact Hyp0.
+    myExact Hyp0.
+Qed.
 
 Goal denote ( nil |= [ ((A -> B) -> A) -> A ] ).
   sequent.
     rImp Con0.
-    destruct (classic (A -> B)). admit.
-Abort.
+    lImp Hyp0.
+    rImp Con0.
+    myExact Hyp0.
+    myExact Hyp0.
+Qed.
 
 Goal denote ( nil |= [ A \/ (A -> False) ] ).
   sequent.
