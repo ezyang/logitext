@@ -15,67 +15,76 @@ Definition denote (s : deduction) : Prop :=
   end.
 
 Lemma contrapositive : forall (A B : Prop), (~ B -> ~ A) <-> (A -> B).
-  intros; destruct (classic B); tauto.
+  intros; destruct (classic B); tauto. (* a little sloppy; the reverse direction is intuitionistically valid *)
 Qed.
 
 (* Slightly opaque definition to help us keep track of hypotheses
 versus parametric values and temporary hypotheses *)
 Definition Hyp (x : Prop) := x.
-Definition Con (x : Prop) := x. (* not used by anyone, here to make the numbering start from 0 *)
+Definition Con (x : Prop) := x. (* not used by anyone; adding this identifier makes numbering start from 0 *)
 
+(* Mark a hypothesis as user hypothesis, for easy tracking later *)
 Ltac wrap H := let T := type of H in change (Hyp T) in H.
+Ltac unwrap H := unfold Hyp in H.
 
+(* Take a single hypothesis which is a list of conjunctions or a negated list of
+   disjunctions and split them all into separate hypotheses.  We assume that the
+   LAST hypothesis is True or some equivalent form (so it can be safely cleared.) *)
 Ltac explode myfresh H tac :=
-  repeat (let h := myfresh idtac in tac; destruct H as [ h H ]; wrap h); clear H.
+  repeat (let h := myfresh idtac in tac; destruct H as [ h H ]; wrap h);
+  match type of H with True => clear H | ~ False => clear H end.
 Ltac conjExplode H := explode ltac:(fun _ => fresh "Hyp") H ltac:idtac.
 Ltac negDisjExplode H := explode ltac:(fun _ => fresh "Con") H ltac:(apply not_or_and in H).
 
+(* Get started *)
 Ltac sequent := simpl; let H := fresh in intro H; conjExplode H.
 
 (* Heavy machinery for handling right-side rules *)
 
-Ltac rollup H tac :=
+Ltac rollup H tac := (* examples for posneg case *)
+  (* H : True, Hyp0 : Hyp ?T0, Hyp1 : Hyp ?T1 |- ?G *)
   repeat match goal with
-           | [ H' : Hyp _ |- _ ] => revert H' end;
-  repeat match goal with
-           | [ |- _ -> _ ] =>
-             let h := fresh in intro h;
-             let ht := type of h in
-             let Ht := type of H in
-             let g := fresh in
-             assert (ht /\ Ht) as g; [constructor; assumption |];
-             (* messy *)
-             clear H; clear h; rename g into H; tac
+           | [ H' : Hyp ?T' |- _ ] =>
+             let T := type of H in
+             let G := fresh in
+             assert (T' /\ T) as G by (constructor; assumption);
+             clear H'; clear H; rename G into H; tac
          end;
-  unfold Hyp in H;
+  (* H : ?T0 /\ ?T1 /\ True |- ?G *)
   revert H.
+  (* |- ?T0 /\ ?T1 /\ True -> ?G *)
 
 Ltac posneg :=
-  let H := fresh in
+  (* Hyp0 : Hyp ?T0, Hyp1 : Hyp ?T1 |- ?C0 \/ ?C1 \/ False *)
+  let H := fresh "tmp" in
   assert True as H by trivial;
   rollup H ltac:idtac;
+  (* |- ?T0 /\ ?T1 /\ True -> ?C0 \/ ?C1 \/ False *)
   apply -> contrapositive;
-  intro H;
-  negDisjExplode H.
+  (* |- ~ (?C0 \/ ?C1 \/ False) -> ~ (?T0 /\ ?T1 /\ True) *)
+  intro H; negDisjExplode H.
+  (* Con0 : Hyp (~ ?C0), Con1 : Hyp (~ ?C1) |- ~ (?T0 /\ ?T1 /\ True) *)
 
 Ltac negpos :=
-  let H := fresh in
+  (* Con0 : Hyp (~ ?C0), Con1 : Hyp (~ ?C1) |- ~ (?T0 /\ ?T1 /\ True) *)
+  let H := fresh "tmp" in
   assert (~ False) as H by tauto;
   rollup H ltac:(apply and_not_or in H);
+  (* |- ~ (?C0 \/ ?C1 \/ False) -> ~ (?T0 /\ ?T1 /\ True) *)
   apply <- contrapositive;
-  intro H;
-  conjExplode H.
+  (* |- (?T0 /\ ?T1 /\ True) -> (?C0 \/ ?C1 \/ False) *)
+  intro H; conjExplode H.
+  (* Hyp0 : Hyp ?T0, Hyp1 : Hyp ?T1 |- ?C0 \/ ?C1 \/ False *)
 
-Ltac canonicalize := posneg; negpos; posneg; negpos. (* twice, to prevent the ordering from reversing *)
+Ltac canonicalize := posneg; negpos.
 
 (* Heavy machinery that will be used to implement right-side rules *)
 
 Ltac negImp H :=
   match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
-    unfold Hyp in H; apply imply_to_and in H;
+    unwrap H; apply imply_to_and in H;
     (* H : H1 /\ ~ H2 *)
-    let H1 := fresh in
-    let H2 := fresh in
+    let H1 := fresh in let H2 := fresh in
     destruct H as [H1 H2];
     (* Want to move H1 to the bottom (since it is positive); keep H2 up top *)
     match goal with
@@ -94,10 +103,9 @@ Ltac negImp H :=
 
 Ltac negDisj H :=
   match type of H with Hyp (~ (_ (* H1 *) \/ _ (* H2 *))) =>
-    unfold Hyp in H; apply not_or_and in H;
+    unwrap H; apply not_or_and in H;
     (* H : ~ H1 /\ ~ H2 *)
-    let H1 := fresh in
-    let H2 := fresh in
+    let H1 := fresh in let H2 := fresh in
     destruct H as [ H1 H2 ];
     wrap H1; wrap H2
   end.
@@ -105,13 +113,13 @@ Ltac negDisj H :=
 (* actual user visible tactics *)
 
 Ltac myExact H :=
-  solve [unfold Hyp in H; repeat match goal with [ |- ?P \/ ?Q ] => try (solve [left; exact H]); right end].
+  solve [unwrap H; repeat match goal with [ |- ?P \/ ?Q ] => try (solve [left; exact H]); right end].
 Ltac myCut := fail.
 
 (* alternatively, duplicate the hypothesis and only provide fst and snd projection *)
 Ltac lConj H :=
   match type of H with Hyp (_ /\ _) =>
-    let h1 := fresh in let h2 := fresh in unfold Hyp in H; destruct H as [h1 h2];
+    let h1 := fresh in let h2 := fresh in unwrap H; destruct H as [h1 h2];
     let t1 := type of h1 in let t2 := type of h2 in change (Hyp t1) in h1; change (Hyp t2) in h2
   end; canonicalize.
 Ltac lDisj H := fail.
@@ -151,6 +159,8 @@ Abort.
 Goal denote ( nil |= [ ((A -> B) -> A) -> A ] ).
   sequent.
     rImp Con0.
+    destruct (classic (A -> B)). admit.
+Abort.
 
 Goal denote ( nil |= [ A \/ (A -> False) ] ).
   sequent.
@@ -159,4 +169,4 @@ Goal denote ( nil |= [ A \/ (A -> False) ] ).
     myExact Hyp0.
 Qed.
 
-End Section.
+End universe.
