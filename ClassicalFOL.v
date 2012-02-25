@@ -37,7 +37,7 @@ Ltac conjExplode H := explode ltac:(fun _ => fresh "Hyp") H ltac:idtac.
 Ltac negDisjExplode H := explode ltac:(fun _ => fresh "Con") H ltac:(apply not_or_and in H).
 
 (* Get started *)
-Ltac sequent := simpl; let H := fresh in intro H; conjExplode H.
+Ltac sequent := simpl denote; let H := fresh in intro H; conjExplode H.
 
 (* Heavy machinery for handling right-side rules *)
 
@@ -154,8 +154,8 @@ Ltac lExists H :=
   match type of H with Hyp (exists _, _) =>
     unwrap H; let x := fresh "x" in destruct H as [x H]; wrap H
   end; canonicalize.
-Ltac lDup H := match type of H with Hyp ?T => myCut T; [|myExact H] end; canonicalize.
-Ltac lClear H := clear H; canonicalize.
+Ltac lContract H := match type of H with Hyp ?T => myCut T; [|myExact H] end; canonicalize.
+Ltac lWeaken H := clear H; canonicalize.
 
 Ltac negImp H :=
   match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
@@ -188,12 +188,16 @@ Ltac negTop H :=
   end].
 Ltac negForall H :=
   match type of H with Hyp (~ (forall _, _)) =>
-    apply not_all_ex_not in H; dropPos H
+    unwrap H; apply not_all_ex_not in H; let x := fresh "x" in destruct H as [x H]; wrap H
   end.
 Ltac negExists H t :=
   match type of H with Hyp (~ (exists _, _)) =>
-    apply not_ex_all_not with (n := t) in H; dropPos H
+    unwrap H; apply not_ex_all_not with (n := t) in H; wrap H
   end.
+Ltac negWeaken H := clear H.
+Ltac negContract H :=
+  let T := type of H in
+  assert T by assumption.
 
 Ltac rWrap tac H := posneg; tac H; negpos.
 Ltac rConj H := rWrap negConj H.
@@ -204,6 +208,8 @@ Ltac rTop H := rWrap negTop H.
 Ltac rNot H := rWrap negNot H.
 Ltac rForall H := rWrap negForall H.
 Ltac rExists H t := posneg; negExists H t; negpos.
+Ltac rWeaken H := rWrap negWeaken H.
+Ltac rContract H := rWrap negContract H.
 
 Section universe.
 
@@ -216,7 +222,8 @@ Variables P Q R : U -> Prop.
 Goal denote ( [ True; C /\ C; (~ True) \/ True ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
   sequent.
     lConj Hyp1.
-    lDup Hyp3.
+    lContract Hyp3.
+    lWeaken Hyp4.
     lDisj Hyp3.
     lNot Hyp3.
     rTop Con0.
@@ -224,6 +231,8 @@ Goal denote ( [ True; C /\ C; (~ True) \/ True ] |= [ False; False; False; ((A -
     lImp Hyp0.
     rImp Con0.
     myExact Hyp0.
+    rContract Con0.
+    rWeaken Con0.
     myExact Hyp0.
 Qed.
 
@@ -232,7 +241,6 @@ Goal denote ( nil |= [ (forall x, P x) -> exists x, P x ] ).
     rImp Con0.
     lForall Hyp0 z.
     rExists Con0 z.
-    lNot Hyp0.
     myExact Hyp0.
 Qed.
 
@@ -258,6 +266,38 @@ Qed.
 Goal denote ( nil |= [ A \/ (A -> False) ] ).
   sequent.
     rDisj Con0.
+    rImp Con1.
+    myExact Hyp0.
+Qed.
+
+Goal denote ( nil |= [ exists x, ((exists y, P y) -> P x) ] ).
+  sequent.
+    rContract Con0.
+    rExists Con0 z.
+    rImp Con0.
+    rWeaken Con0.
+    lExists Hyp0.
+    rExists Con0 x.
+    rImp Con0.
+    myExact Hyp1.
+Qed.
+
+(* slight rendering strangeness here *)
+Goal denote ( nil |= [ A -> forall (x : U), A ] ).
+  sequent.
+    rImp Con0.
+    rForall Con0.
+    myExact Hyp0.
+Qed.
+
+Goal denote ( nil |= [ exists x, P x -> forall y, P y ] ).
+  sequent.
+    rContract Con0.
+    rExists Con0 z.
+    rImp Con0.
+    rForall Con0.
+    rWeaken Hyp0.
+    rExists Con1 x.
     rImp Con1.
     myExact Hyp0.
 Qed.
