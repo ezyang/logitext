@@ -23,18 +23,20 @@ versus parametric values and temporary hypotheses *)
 Definition Hyp (x : Prop) := x.
 Definition Con (x : Prop) := x. (* not used by anyone, here to make the numbering start from 0 *)
 
+Ltac wrap H := let T := type of H in change (Hyp T) in H.
+
 Ltac explode myfresh H tac :=
-  repeat (let h := myfresh idtac in tac; destruct H as [ h H ]; let x := type of h in change (Hyp x) in h); clear H.
+  repeat (let h := myfresh idtac in tac; destruct H as [ h H ]; wrap h); clear H.
 Ltac conjExplode H := explode ltac:(fun _ => fresh "Hyp") H ltac:idtac.
 Ltac negDisjExplode H := explode ltac:(fun _ => fresh "Con") H ltac:(apply not_or_and in H).
 
-Ltac unwrap := cbv; intro H; conjExplode H.
+Ltac sequent := simpl; let H := fresh in intro H; conjExplode H.
 
 (* Heavy machinery for handling right-side rules *)
 
 Ltac rollup H tac :=
   repeat match goal with
-           | [ H' : Hyp ?P |- _ ] => revert H' end;
+           | [ H' : Hyp _ |- _ ] => revert H' end;
   repeat match goal with
            | [ |- _ -> _ ] =>
              let h := fresh in intro h;
@@ -75,7 +77,7 @@ Ltac negImp H :=
     let H1 := fresh in
     let H2 := fresh in
     destruct H as [H1 H2];
-    (* Want to move H1 to the bottom (as a negative); keep H2 up top *)
+    (* Want to move H1 to the bottom (since it is positive); keep H2 up top *)
     match goal with
       [ |- ?G ] =>
         let h := fresh in
@@ -86,13 +88,24 @@ Ltac negImp H :=
         ]
     end;
     clear H1;
-    let T2 := type of H2 in change (Hyp T2) in H2;
+    wrap H2;
     apply not_and_or
+  end.
+
+Ltac negDisj H :=
+  match type of H with Hyp (~ (_ (* H1 *) \/ _ (* H2 *))) =>
+    unfold Hyp in H; apply not_or_and in H;
+    (* H : ~ H1 /\ ~ H2 *)
+    let H1 := fresh in
+    let H2 := fresh in
+    destruct H as [ H1 H2 ];
+    wrap H1; wrap H2
   end.
 
 (* actual user visible tactics *)
 
-Ltac myExact := fail.
+Ltac myExact H :=
+  solve [unfold Hyp in H; repeat match goal with [ |- ?P \/ ?Q ] => try (solve [left; exact H]); right end].
 Ltac myCut := fail.
 
 (* alternatively, duplicate the hypothesis and only provide fst and snd projection *)
@@ -112,25 +125,38 @@ Ltac lForall H t := fail.
 Ltac lExists H := fail.
 Ltac lDup H := fail.
 
+Ltac rWrap tac H := posneg; tac H; negpos; posneg; negpos.
+
 Ltac rConj H := fail.
-Ltac rDisjL H := fail.
-Ltac rDisjR H := fail.
-Ltac rImp H := posneg; negImp H; negpos; posneg; negpos.
+(* Alternatively, commit to a disjunction *)
+Ltac rDisj H := rWrap negDisj H.
+Ltac rImp H := rWrap negImp H.
 Ltac rForall H := fail.
 Ltac rExists H t := fail.
 Ltac rDup H := fail.
 
 Section universe.
 
-Variable U : Set.
+Parameter U : Set.
 Variable z : U. (* non-empty domain *)
 Variables A B C : Prop. (* some convenient things to instantiate with *)
 
 (* an example *)
 Goal denote ( [ True; C /\ C ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
-  unwrap.
-  lConj Hyp1.
-  rImp Con3.
+  sequent.
+    lConj Hyp1.
+    rImp Con3.
 Abort.
+
+Goal denote ( nil |= [ ((A -> B) -> A) -> A ] ).
+  sequent.
+    rImp Con0.
+
+Goal denote ( nil |= [ A \/ (A -> False) ] ).
+  sequent.
+    rDisj Con0.
+    rImp Con1.
+    myExact Hyp0.
+Qed.
 
 End Section.
