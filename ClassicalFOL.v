@@ -110,29 +110,14 @@ Ltac dropPos H :=
   apply not_and_or.
   (* |- ~ (?T /\ ?G) *)
 
-Ltac negImp H :=
-  match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
-    unwrap H; apply imply_to_and in H;
-    (* H : H1 /\ ~ H2 *)
-    let H1 := fresh in let H2 := fresh in
-    destruct H as [H1 H2];
-    dropPos H1; wrap H2
-  end.
-
-Ltac negDisj H :=
-  match type of H with Hyp (~ (_ (* H1 *) \/ _ (* H2 *))) =>
-    unwrap H; apply not_or_and in H;
-    (* H : ~ H1 /\ ~ H2 *)
-    let H1 := fresh in let H2 := fresh in
-    destruct H as [ H1 H2 ];
-    wrap H1; wrap H2
-  end.
-
 (* actual user visible tactics *)
 
 Ltac myExact H :=
   solve [unwrap H; repeat match goal with [ |- ?P \/ ?Q ] => try (solve [left; exact H]); right end].
-Ltac myCut := fail.
+Ltac myCut T :=
+  match goal with [ |- ?G ] =>
+    cut (T \/ G); [ let G := fresh in intro G; destruct G as [G|G]; [wrap G|exact G] | ]
+  end.
 
 (* alternatively, duplicate the hypothesis and only provide fst and snd projection *)
 (* ordering is a bit sensitive here. lConj generates a bunch of new labels, so
@@ -147,46 +132,117 @@ Ltac lConj H :=
 Ltac lDisj H :=
   match type of H with Hyp (_ \/ _) =>
     unwrap H; destruct H as [H | H]; wrap H
-  end.
+  end; canonicalize.
 Ltac lImp H :=
   match type of H with Hyp (?P -> _) =>
     unwrap H; apply imply_to_or in H; (* ~ _ \/ _ *)
     destruct H as [H | H]; [ dropNeg H | wrap H ]
-  end.
+  end; canonicalize.
 Ltac lBot H :=
-  match type of H with Hyp False =>
+  solve [match type of H with Hyp False =>
     unwrap H; destruct H
+  end].
+Ltac lNot H :=
+  match type of H with Hyp (~ ?P) =>
+    unwrap H; dropNeg H
+  end; canonicalize.
+Ltac lForall H t :=
+  match type of H with Hyp (forall _, _) =>
+    unwrap H; specialize (H t); wrap H
+  end; canonicalize.
+Ltac lExists H :=
+  match type of H with Hyp (exists _, _) =>
+    unwrap H; let x := fresh "x" in destruct H as [x H]; wrap H
+  end; canonicalize.
+Ltac lDup H := match type of H with Hyp ?T => myCut T; [|myExact H] end; canonicalize.
+Ltac lClear H := clear H; canonicalize.
+
+Ltac negImp H :=
+  match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
+    unwrap H; apply imply_to_and in H;
+    (* H : H1 /\ ~ H2 *)
+    let H1 := fresh in let H2 := fresh in
+    destruct H as [H1 H2];
+    dropPos H1; wrap H2
   end.
-Ltac lForall H t := fail.
-Ltac lExists H := fail.
-Ltac lDup H := fail.
+Ltac negConj H :=
+  match type of H with Hyp (~ (_ (* H1 *) /\ _ (* H2 *))) =>
+    unwrap H; apply not_and_or in H;
+    destruct H as [H|H]; wrap H
+  end.
+Ltac negDisj H :=
+  match type of H with Hyp (~ (_ (* H1 *) \/ _ (* H2 *))) =>
+    unwrap H; apply not_or_and in H;
+    (* H : ~ H1 /\ ~ H2 *)
+    let H1 := fresh in let H2 := fresh in
+    destruct H as [ H1 H2 ];
+    wrap H1; wrap H2
+  end.
+Ltac negNot H :=
+  match type of H with Hyp (~ (~ _)) =>
+    unwrap H; apply NNPP in H; dropPos H
+  end.
+Ltac negTop H :=
+  solve [match type of H with Hyp (~ True) =>
+    unwrap H; contradict H; constructor
+  end].
+Ltac negForall H :=
+  match type of H with Hyp (~ (forall _, _)) =>
+    apply not_all_ex_not in H; dropPos H
+  end.
+Ltac negExists H t :=
+  match type of H with Hyp (~ (exists _, _)) =>
+    apply not_ex_all_not with (n := t) in H; dropPos H
+  end.
 
-Ltac rWrap tac H := posneg; tac H; negpos; posneg; negpos.
-
-Ltac rConj H := fail.
+Ltac rWrap tac H := posneg; tac H; negpos.
+Ltac rConj H := rWrap negConj H.
 (* Alternatively, commit to a disjunction *)
 Ltac rDisj H := rWrap negDisj H.
 Ltac rImp H := rWrap negImp H.
-Ltac rForall H := fail.
-Ltac rExists H t := fail.
-Ltac rDup H := fail.
+Ltac rTop H := rWrap negTop H.
+Ltac rNot H := rWrap negNot H.
+Ltac rForall H := rWrap negForall H.
+Ltac rExists H t := posneg; negExists H t; negpos.
 
 Section universe.
 
 Parameter U : Set.
 Variable z : U. (* non-empty domain *)
 Variables A B C : Prop. (* some convenient things to instantiate with *)
+Variables P Q R : U -> Prop.
 
 (* an example *)
-Goal denote ( [ True; C /\ C; False \/ True ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
+Goal denote ( [ True; C /\ C; (~ True) \/ True ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
   sequent.
     lConj Hyp1.
+    lDup Hyp3.
     lDisj Hyp3.
-    lBot Hyp3.
+    lNot Hyp3.
+    rTop Con0.
     rImp Con3.
     lImp Hyp0.
     rImp Con0.
     myExact Hyp0.
+    myExact Hyp0.
+Qed.
+
+Goal denote ( nil |= [ (forall x, P x) -> exists x, P x ] ).
+  sequent.
+    rImp Con0.
+    lForall Hyp0 z.
+    rExists Con0 z.
+    lNot Hyp0.
+    myExact Hyp0.
+Qed.
+
+Goal denote ( nil |= [ (exists x, P x) -> ~ (forall x, ~ P x) ] ).
+  sequent.
+    rImp Con0.
+    lExists Hyp0.
+    rNot Con0.
+    lForall Hyp0 x.
+    lNot Hyp0.
     myExact Hyp0.
 Qed.
 
