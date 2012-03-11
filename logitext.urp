@@ -2,4 +2,6 @@ allow url http://localhost/logitext/style.css
 rewrite all Logitext/*
 library coq
 
+$/option
+$/list
 logitext

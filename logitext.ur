@@ -10,24 +10,36 @@ fun calculate s a : state =
 
 (* distinct from rendering *)
 fun available (s : state) : list action =
-  Cons (Inc, Cons (Dec, Nil))
+  Cons (Dec, Cons (Inc, Nil))
 
 fun speculate (s : state) : xbody =
-  <xml><div><button value="+1"/>, <button value="-1"/> ⊢ {[s]}</div></xml>
+  <xml><div><button value="-1"/>, <button value="+1"/> ⊢ {[s]}</div></xml>
+
+(* rpc should be able to deal with anonymous expressions; just lambda-lift that
+fun zorp n : transaction int = return (Coq.test n)
+    <button onclick={v <- rpc (zorp 2); set k <xml>{[v]}</xml>} value="+1" />*)
 
 fun generate s =
-  k <- source <xml></xml>;
-  let val foo = "asdf" in
-  (*let val speculah = mp (fn a => speculate (calculate s a)) (available s) in*)
-    return <xml><table>
+  previewChan <- source <xml></xml>;
+  realChan <- source <xml></xml>;
+  k <- source <xml><dyn signal={signal previewChan}/></xml>;
+  let val speculations = List.mp (fn a => speculate (calculate s a)) (available s)
+      fun blank () = set previewChan <xml/>
+      fun preview n = set previewChan (Option.get <xml/> (List.nth speculations n))
+      fun run a = generate (calculate s a)
+      fun apply a =
+        r <- rpc (run a);
+        set realChan r;
+        set k <xml><dyn signal={signal realChan}/></xml>
+  in return <xml><table>
       <tr><td><dyn signal={signal k}/></td></tr>
       <tr><td>
-        <button onclick={set k <xml>foo</xml>} value="test" />
+        <button onclick={apply Dec} onmouseover={preview 0} onmouseout={blank ()} value="-1" />,
+        <button onclick={apply Inc} onmouseover={preview 1} onmouseout={blank ()} value="+1" />
         ⊢ {[s]}
       </td></tr>
-    </table></xml>
+     </table></xml>
   end
-  (*end*)
 
 fun main () =
   tbl <- generate 0;
