@@ -1,2 +1,3 @@
-.sequent table { margin:0 auto; border-collapse:collapse; width:80%; }
+.sequent {  }
+.sequent table { margin:0; border-collapse:collapse; }
 .sequent td { padding:0; border:0; margin:0; height:2em; text-align:center; }

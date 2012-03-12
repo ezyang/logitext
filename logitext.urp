@@ -1,6 +1,12 @@
 allow url http://localhost/logitext/style.css
 rewrite all Logitext/*
 library coq
+script http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.js
+script http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.js
+script http://ianli.com/infinitedrag/javascripts/jquery.infinitedrag.js
+script http://localhost/logitext/ffi.js
+jsFunc Js.infiniteDrag=infiniteDrag
+ffi js
 
 $/option
 $/list

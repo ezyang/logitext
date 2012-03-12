@@ -1,4 +1,5 @@
 style sequent
+style viewport
 
 con state = int
 datatype action = Inc | Dec
@@ -54,8 +55,10 @@ fun main () =
       <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
     </head>
     <body>
-      <div class={sequent}>
-        {tbl}
+      <div class={viewport}>
+        <div class={sequent}>
+          {tbl}
+        </div>
       </div>
     </body>
   </xml>
