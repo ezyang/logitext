@@ -2,6 +2,7 @@ style sequent
 
 con state = int
 datatype action = Inc | Dec
+datatype mode = Preview | Final
 
 fun calculate s a : state =
   case a of
@@ -20,19 +21,24 @@ fun zorp n : transaction int = return (Coq.test n)
     <button onclick={v <- rpc (zorp 2); set k <xml>{[v]}</xml>} value="+1" />*)
 
 fun generate s =
-  previewChan <- source <xml></xml>;
-  realChan <- source <xml></xml>;
-  k <- source <xml><dyn signal={signal previewChan}/></xml>;
+  previewChan <- source <xml/>;
+  finalChan <- source <xml/>;
+  status <- source Preview;
   let val speculations = List.mp (fn a => speculate (calculate s a)) (available s)
       fun blank () = set previewChan <xml/>
       fun preview n = set previewChan (Option.get <xml/> (List.nth speculations n))
       fun run a = generate (calculate s a)
       fun apply a =
         r <- rpc (run a);
-        set realChan r;
-        set k <xml><dyn signal={signal realChan}/></xml>
+        set finalChan r;
+        set status Final
   in return <xml><table>
-      <tr><td><dyn signal={signal k}/></td></tr>
+      <tr><td><dyn signal={
+        stat <- signal status;
+        case stat of
+          | Preview => signal previewChan
+          | Final => signal finalChan
+      }/></td></tr>
       <tr><td>
         <button onclick={apply Dec} onmouseover={preview 0} onmouseout={blank ()} value="-1" />,
         <button onclick={apply Inc} onmouseover={preview 1} onmouseout={blank ()} value="+1" />
