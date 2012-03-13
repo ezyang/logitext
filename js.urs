@@ -1,1 +1,1 @@
-val infiniteDrag : transaction unit
+val infinitedrag : id -> xbody -> transaction unit

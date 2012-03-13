@@ -50,15 +50,14 @@ fun generate s =
 
 fun main () =
   tbl <- generate 0;
+  seqid <- fresh;
   return <xml>
     <head>
       <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
     </head>
-    <body>
+    <body onload={Js.infinitedrag seqid tbl}>
       <div class={viewport}>
-        <div class={sequent}>
-          {tbl}
-        </div>
+        <div id={seqid} class={sequent}>&nbsp;</div>
       </div>
     </body>
   </xml>
