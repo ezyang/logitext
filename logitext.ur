@@ -1,5 +1,4 @@
 style sequent
-style viewport
 
 con state = int
 datatype action = Inc | Dec
@@ -33,6 +32,7 @@ fun generate s =
         r <- rpc (run a);
         set finalChan r;
         set status Final
+  (* tables here are wrong *)
   in return <xml><table>
       <tr><td><dyn signal={
         stat <- signal status;
@@ -56,7 +56,7 @@ fun main () =
       <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
     </head>
     <body onload={Js.infinitedrag seqid tbl}>
-      <div class={viewport}>
+      <div>
         <div id={seqid} class={sequent}>&nbsp;</div>
       </div>
     </body>
