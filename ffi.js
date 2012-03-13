@@ -10,6 +10,7 @@ function infinitedrag(draggable, contents) {
                 el["0"].appendChild(div.childNodes[i]);
             }
             runScripts(el["0"]);
+            el.addClass("zeropoint");
         }
     }});
 }

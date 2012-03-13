@@ -1,4 +1,5 @@
 style sequent
+style preview
 
 con state = int
 datatype action = Inc | Dec
@@ -14,7 +15,7 @@ fun available (s : state) : list action =
   Cons (Dec, Cons (Inc, Nil))
 
 fun speculate (s : state) : xbody =
-  <xml><div><button value="-1"/>, <button value="+1"/> ⊢ {[s]}</div></xml>
+  <xml><div class={preview}><button value="-1"/>, <button value="+1"/> ⊢ {[s]}</div></xml>
 
 (* rpc should be able to deal with anonymous expressions; just lambda-lift that
 fun zorp n : transaction int = return (Coq.test n)
@@ -32,7 +33,13 @@ fun generate s =
         r <- rpc (run a);
         set finalChan r;
         set status Final
-  (* tables here are wrong *)
+  (* Tables here are wrong:
+        - you can't nest more than 28ish, so it doesn't work for large
+          proof trees (though, arguably, we shouldn't need really large trees)
+        - you can't actually make consistent update (all previous
+          elements stay at the same place when you make a new one) work properly
+     ...So we actually want to absolutely position things
+  *)
   in return <xml><table>
       <tr><td><dyn signal={
         stat <- signal status;
