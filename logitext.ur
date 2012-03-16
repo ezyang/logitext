@@ -1,5 +1,6 @@
 style sequent
 style preview
+style viewport
 
 con state = int
 datatype action = Inc | Dec
@@ -63,7 +64,7 @@ fun main () =
       <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
     </head>
     <body onload={Js.infinitedrag seqid tbl}>
-      <div>
+      <div class={viewport}>
         <div id={seqid} class={sequent}>&nbsp;</div>
       </div>
     </body>
