@@ -202,3 +202,7 @@ sort = Prop <$ reserved "Prop" <|> Set <$ reserved "Set" <|> Type <$ reserved "T
 
 parse_sample = "or ((forall x : U, P x) -> @ex U (fun x : U => P x)) False"
 sample = parse (term <* eof) "" parse_sample
+
+parseTerm = parse (term <* eof) ""
+
+-- XXX can haz test please (do it before you make changes)

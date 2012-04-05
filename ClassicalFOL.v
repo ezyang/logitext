@@ -215,6 +215,7 @@ Section universe.
 
 Parameter U : Set.
 Variable z : U. (* non-empty domain *)
+Variable f : U -> U. (* FOL function *)
 Variables A B C : Prop. (* some convenient things to instantiate with *)
 Variables P Q R : U -> Prop.
 
@@ -292,7 +293,7 @@ Goal denote ( nil |= [ A -> forall (x : U), A ] ).
     myExact Hyp0.
 Qed.
 
-Goal denote ( nil |= [ exists x, P x -> forall y, P y -> P y ] ).
+Goal denote ( nil |= [ exists x, P x -> forall y, P y ] ).
   sequent.
     rContract Con0.
     rExists Con0 z.
