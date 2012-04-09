@@ -6,7 +6,6 @@ import Control.Applicative hiding ((<|>), many)
 import Text.Parsec
 import qualified Text.Parsec.Token as P
 import Text.Parsec.Language (emptyDef)
-import Text.Parsec.Expr
 import Data.Functor.Identity
 
 coqStyle :: P.LanguageDef st
