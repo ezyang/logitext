@@ -2,6 +2,8 @@ style sequent
 style preview
 style viewport
 
+open Json
+
 task initialize = Haskell.init
 
 con state = int
