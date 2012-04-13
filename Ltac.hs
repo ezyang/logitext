@@ -17,4 +17,5 @@ instance Show Expr where
     show (Seq e es) = show e ++ "; [ " ++ intercalate " | " (map show es) ++ " ]"
     -- show (Progress e) = "progress " ++ show e
     -- show (Solve es) = "solve [" ++ intercalate "|" (map show es) ++ "]"
+    show (Tac s []) = s
     show (Tac s as) = s ++ " " ++ intercalate " " as

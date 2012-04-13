@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, KindSignatures, ExistentialQuantification, ScopedTypeVariables, DeriveDataTypeable #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, KindSignatures, ExistentialQuantification, ScopedTypeVariables, DeriveDataTypeable, DeriveFunctor, NoMonomorphismRestriction #-}
 
 module ClassicalFOL where
 
@@ -20,9 +20,6 @@ import Control.Monad
 import Debug.Trace
 
 import Text.XML.Light
-
--- Ltac is a flat language, but the proofs we want to create and modify
--- are trees.
 
 -- The fact that we rely on Coq's naming to be deterministic REALLY SUCKS
 
@@ -121,41 +118,73 @@ disjList (x:xs) = Disj x (disjList xs)
 -- but not knowing what the right proof step is.
 --
 -- You might suggest some inference rule Q, in which case
--- you now have an Proof (Q _) _, but we don't care about that for
--- now.)  It's unknown if it will work.  If it has been passed to Coq,
--- the third constructor is a Just containing the subgoals generated,
--- which depends on the value of Q.
+-- you now have an Pending _ (Q _).  It's unknown if it will work, nor do
+-- we know what the subgoals will be.
+--
+-- Finally, after passing it to Coq, we discover if it's successful
+-- and replace it with a Proof term.
 
-data P = Goal S | forall i. Proof S (Q i) (Maybe (i P))
--- P S Q | Pending | Hole S
+data P = Goal S | Pending S (Q Int) | Proof S (Q P)
+    deriving (Show)
 
-data Zero a = Zero
-data One a = One a
-data Two a = Two a a
+data Q a = Exact Int
+         | Cut L a a
+         | LConj Int a
+         | LDisj Int a a
+         | LImp Int a a
+         | LBot Int
+         | LNot Int a
+         | LForall Int V a
+         | LExists Int a
+         | LContract Int a
+         | LWeaken Int a
+         | RConj Int a a
+         | RDisj Int a
+         | RImp Int a
+         | RNot Int a
+         | RForall Int a
+         | RExists Int V a
+         | RWeaken Int a
+         | RContract Int a
+    deriving (Functor, Show)
 
-data Q (i :: * -> *) where
-    Exact      :: Int   -> Q Zero
-    Cut        :: L     -> Q Two
-    LConj      :: Int   -> Q One
-    LDisj      :: Int   -> Q Two
-    LImp       :: Int   -> Q Two
-    LBot       :: Int   -> Q Zero
-    LNot       :: Int   -> Q One
-    LForall    :: Int -> V -> Q One
-    LExists    :: Int   -> Q One
-    LContract  :: Int   -> Q One
-    LWeaken    :: Int   -> Q One
-    RConj      :: Int   -> Q Two
-    RDisj      :: Int   -> Q One
-    RImp       :: Int   -> Q One
-    RNot       :: Int   -> Q One
-    RForall    :: Int   -> Q One
-    RExists    :: Int -> V -> Q One
-    RWeaken    :: Int   -> Q One
-    RContract  :: Int   -> Q One
+-- preorder traversal
+preorder fp fq a = tp a
+  where
+    -- XXX eep, only needs to be partial! Could use some GADTs here...
+    tp p@(Goal _)       = fp p -- used for Goal -> Pending transition
+    tp p@(Pending _ _)  = fp p -- used for Pending -> Proof transition
+    tp p@(Proof s q)    = Proof s <$ fp p <*> tq q -- result discarded
+
+    tq q@(Exact n)      = Exact n <$ fq q
+    tq q@(Cut l x y)    = Cut l <$ fq q <*> tp x <*> tp y
+    tq q@(LConj n x)    = LConj n <$ fq q <*> tp x
+    tq q@(LDisj n x y)  = LDisj n <$ fq q <*> tp x <*> tp y
+    tq q@(LImp n x y)   = LImp n <$ fq q <*> tp x <*> tp y
+    tq q@(LBot n)       = LBot n <$ fq q
+    tq q@(LNot n x)     = LNot n <$ fq q <*> tp x
+    tq q@(LForall n v x) = LForall n v <$ fq q <*> tp x
+    tq q@(LExists n x)  = LExists n <$ fq q <*> tp x
+    tq q@(LContract n x) = LContract n <$ fq q <*> tp x
+    tq q@(LWeaken n x)  = LWeaken n <$ fq q <*> tp x
+    tq q@(RConj n x y)  = RConj n <$ fq q <*> tp x <*> tp y
+    tq q@(RDisj n x)    = RDisj n <$ fq q <*> tp x
+    tq q@(RImp n x)     = RImp n <$ fq q <*> tp x
+    tq q@(RNot n x)     = RNot n <$ fq q <*> tp x
+    tq q@(RForall n x)  = RForall n <$ fq q <*> tp x
+    tq q@(RExists n v x) = RExists n v <$ fq q <*> tp x
+    tq q@(RWeaken n x)  = RWeaken n <$ fq q <*> tp x
+    tq q@(RContract n x) = RContract n <$ fq q <*> tp x
 
 hyp n = "Hyp" ++ show n
 con n = "Con" ++ show n
+
+qNum Exact{} = 0
+qNum RNot{} = 1
+
+qToTac (Exact n) = Tac "myExact" [hyp n]
+qToTac (Cut l _ _) = Tac "myCut" [C.render (toCoq l)]
+qToTac (RNot n _) = Tac "rNot" [con n]
 
 -- We need to do a rather special mechanism of feeding the proof to Coq,
 -- because we need to find out what the intermediate proof state at
@@ -185,15 +214,15 @@ data CoqError = TacticFailure | NoMoreSubgoals
 parseResponse :: [Content] -> Either CoqError S
 parseResponse raw = do
     let fake = Element (qn "fake") [] raw Nothing
-        isInterestingProp (C.Typed (C.Atom n) (C.Sort C.Prop)) | "Hyp" `isPrefixOf` n = True
-        isInterestingProp _ = False
+        extractHyp (C.Typed (C.Atom _) (C.App (C.Atom "Hyp") [l])) = Just l
+        extractHyp _ = Nothing
     -- showElement fake `trace` return ()
     when (isJust (findElement (qn "errorresponse") fake)) (Left TacticFailure)
     -- yes, we're being partial here, but using ordering to
     -- ensure that the errors get sequenced correctly
     resp <- maybeError "pendingToHole: no response found" (findChild (qn "normalresponse") (Element (qn "fake") [] raw Nothing))
     (\s -> when (s == "no-more-subgoals") (Left NoMoreSubgoals)) `traverse_` findAttr (qn "status") resp
-    hyps <- filter isInterestingProp
+    hyps <- mapMaybe extractHyp
           . rights
           . map (C.parseTerm . strContent)
           . findChildren (qn "hyp")
@@ -203,7 +232,8 @@ parseResponse raw = do
 
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
-refine p@(Proof s _ _) = refine' s p
+refine p@(Pending s _) = refine' s p
+refine p@(Proof s _)   = refine' s p
 
 data UpdateFailure = UpdateFailure
     deriving (Typeable, Show)
@@ -214,19 +244,20 @@ refine' :: S -> P -> IO P
 -- XXX not quite right
 refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
     -- XXX demand no errors
-    mapM_ f [ "Section scratch."
-            , "Parameter U : Set."
+    mapM_ f [ "Section scratch"
+            , "Parameter U : Set"
             -- XXX factor these constants out
-            , "Variable z : U."
-            , "Variable f g h : U -> U."
-            , "Variable A B C : Prop."
-            , "Variable P Q R : Prop."
-            , "Set Printing All."
+            , "Variable z : U"
+            , "Variable f g h : U -> U"
+            , "Variable A B C : Prop"
+            , "Variable P Q R : Prop"
+            , "Set Printing All"
             ]
     -- despite being horrible mutation, this plays an important
     -- synchronizing role for us
     currentState <- newIORef undefined
     let run tac = do
+            -- putStrLn tac
             r <- evaluate . parseResponse =<< f tac
             case r of
                 -- it turns out the actual proof state isn't that useful;
@@ -239,22 +270,29 @@ refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
                 Left NoMoreSubgoals -> return True
         readState = readIORef currentState
         checkState s = readState >>= \s' -> assert (s == s') (return ())
-    r <- run ("Goal " ++ C.render (toCoq (disjList cs)) ++ ".")
+    r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
     when (not r) $ error "refine: setting goal failed"
-    checkState s
 
-    let go1 :: Maybe (One P) -> Bool -> IO (Maybe (One P))
-        go1 (Just (One _)) False = error "refine: inconsistent proof object"
-        go1 Nothing False = throwIO UpdateFailure
-        go1 (Just (One p)) True = Just . One <$> rec p
-        go1 Nothing True = Just . One . Goal <$> readState
-        rec p@(Goal s) = run "admit." >> return p
-        rec p@(Proof s (RNot n) m) = run ("rNot " ++ con n ++ ".") >>= go1 m >>= return . Proof s (RNot n)
+    let fp p@(Goal s) = checkState s >> return p
+        -- TODO also check goal adjustment is correct
+        fp p@(Pending s q) = do
+            checkState s
+            run (show (qToTac q)) >>= (`unless` throwIO UpdateFailure)
+            gs <- replicateM (qNum q) (readState <* (run "admit" >>= (`unless` error "refine: could not admit")))
+            return (Proof s (fmap (Goal . (gs !!)) q))
+        fp (Proof s _) = checkState s >> return undefined
+        fq q = run (show (qToTac q)) >>= (`unless` error "refine: inconsistent proof state")
 
-    rec p
+    preorder fp fq p
+
 -- XXX partial (not a particularly stringent requirement; you can get
 -- around it with a few intros / tactic applications
 refine' _ _ = error "pendingToHole: meta-implication must be phrased as implication"
 
-main = let s = S [] [Pred "A" [], Not (Pred "A" [])]
-       in refine (Proof s (RNot 1) (Just (One (Goal (S [Pred "A" []] [Pred "A" []])))))
+main = do
+    let s = S [] [Pred "A" [], Not (Pred "A" [])]
+    print =<< refine (Goal s)
+    print =<< refine (Pending s (RNot 1 0))
+    print =<< refine (Proof s (RNot 1 (Goal (S [Pred "A" []] [Pred "A" []]))))
+    print =<< refine (Proof s (RNot 1 (Pending (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
+    print =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))

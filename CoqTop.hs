@@ -59,7 +59,7 @@ coqtopRaw theory = do
     -- pass it enough information.  Correct thing to do is on COQ
     -- side say "I want more information!"  Nor does it do good things
     -- if you give it too much information... (de-synchronization risk)
-    interactVar <- newMVar (\s -> hPutStrLn fin s >> readChan resultChan)
+    interactVar <- newMVar (\s -> hPutStr fin (s ++ ".\n") >> readChan resultChan)
     let interact s = withMVar interactVar (\f -> f s)
     end <- onlyOnce $ do
         killThread tout
