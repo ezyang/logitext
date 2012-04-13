@@ -1,0 +1,6 @@
+include haskell.h
+ffi haskell
+link haskell.c
+link ClassicalFOLFFI.hs
+effectful Haskell.init
+haskell

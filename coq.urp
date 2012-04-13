@@ -1,3 +1,0 @@
-include coq.h
-ffi coq
-link coq.o

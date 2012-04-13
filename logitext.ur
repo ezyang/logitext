@@ -2,6 +2,8 @@ style sequent
 style preview
 style viewport
 
+task initialize = Haskell.init
+
 con state = int
 datatype action = Inc | Dec
 datatype mode = Preview | Final
@@ -19,7 +21,7 @@ fun speculate (s : state) : xbody =
   <xml><div class={preview}><button value="-1"/>, <button value="+1"/> ⊢ {[s]}</div></xml>
 
 (* rpc should be able to deal with anonymous expressions; just lambda-lift that
-fun zorp n : transaction int = return (Coq.test n)
+fun zorp n : transaction int = return (Haskell.test n)
     <button onclick={v <- rpc (zorp 2); set k <xml>{[v]}</xml>} value="+1" />*)
 
 fun generate s =
@@ -57,7 +59,7 @@ fun generate s =
   end
 
 fun main () =
-  tbl <- generate 0;
+  tbl <- generate (Haskell.test 0);
   seqid <- fresh;
   return <xml>
     <head>

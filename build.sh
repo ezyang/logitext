@@ -4,7 +4,7 @@ while true
 do
     pkill logitext.exe
     reset
-    gcc -c coq.c
+    ghc -c ClassicalFOLFFI.hs haskell.c
     urweb logitext
     ./logitext.exe &
     inotifywait -e modify $(git ls-files)
