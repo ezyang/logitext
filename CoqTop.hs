@@ -1,6 +1,8 @@
 {-# LANGUAGE RankNTypes, NoMonomorphismRestriction, ScopedTypeVariables #-}
 
-module CoqTop where
+module CoqTop
+    ( coqtop
+    ) where
 
 import Prelude hiding (catch)
 import System.IO

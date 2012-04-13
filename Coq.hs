@@ -1,12 +1,22 @@
 {-# LANGUAGE RankNTypes, TupleSections #-}
 
-module Coq where
+module Coq (
+      Term(..)
+    , Binder
+    , Name
+    , Sort(..)
+    , term
+    , parseTerm
+    , CoqTerm(..)
+    , render
+    ) where
 
 import Control.Applicative hiding ((<|>), many)
 import Text.Parsec
 import qualified Text.Parsec.Token as P
 import Text.Parsec.Language (emptyDef)
 import Data.Functor.Identity
+import Data.List hiding (sort)
 
 coqStyle :: P.LanguageDef st
 coqStyle = emptyDef
@@ -43,6 +53,7 @@ reserved   = P.reserved lexer
 identifier = P.identifier lexer
 reservedOp = P.reservedOp lexer
 integer    = P.integer lexer
+whiteSpace = P.whiteSpace lexer
 
 -- http://coq.inria.fr/doc/Reference-Manual003.html
 
@@ -72,14 +83,31 @@ data Term = Forall [Binder] Term
           | Sort Sort
           | Num Integer
           | Atom Name
-    deriving (Show)
+    deriving (Show, Eq)
+
+render :: Term -> String
+render (Forall bs t) = "(forall " ++ renderBinders bs ++ ", " ++ render t ++ ")"
+render (Fun bs t) = "(fun " ++ renderBinders bs ++ " => " ++ render t ++ ")"
+render (Typed t t') = "(" ++ render t ++ " : " ++ render t' ++ ")"
+render (Imp t t') = "(" ++ render t ++ " -> " ++ render t' ++ ")"
+render (App t ts) = "(" ++ render t ++ " " ++ intercalate " " (map render ts) ++ ")"
+render (Sort Prop) = "Prop"
+render (Sort Set) = "Set"
+render (Sort Type) = "Type"
+render (Num i) = show i
+render (Atom n) = n
+
+renderBinders :: [Binder] -> String
+renderBinders [] = error "renderBinders: empty binder"
+renderBinders [(n, t)] = "(" ++ n ++ ":" ++ render t ++ ")"
+renderBinders (x:xs) = renderBinders [x] ++ " " ++ renderBinders xs -- XXX code reuse at its finest
 
 -- We require the types of our binders!  If you Set Printing All you
 -- should get them.
 type Binder = (Name, Term)
 type Name = String -- qualid's are squashed in here
 data Sort = Prop | Set | Type
-    deriving Show
+    deriving (Show, Eq)
 
 -- But the BNF is not enough to actually properly parse...
 -- (precedences?)
@@ -150,7 +178,7 @@ lconstr = operconstr200
 --  "@" global
 constr :: P Term
 constr = try operconstr0
-     <|> (reservedOp "@" >> global)
+     <|> (reservedOp "@" >> Atom . ('@':) <$> identifier)
 
 -- binder_constr:
 --  "forall" open_binders "," operconstr.200
@@ -202,6 +230,10 @@ sort = Prop <$ reserved "Prop" <|> Set <$ reserved "Set" <|> Type <$ reserved "T
 parse_sample = "or ((forall x : U, P x) -> @ex U (fun x : U => P x)) False"
 sample = parse (term <* eof) "" parse_sample
 
-parseTerm = parse (term <* eof) ""
+parseTerm = parse (whiteSpace >> term <* eof) ""
 
 -- XXX can haz test please (do it before you make changes)
+
+class CoqTerm a where
+    toCoq :: a -> Term
+    fromCoq :: Term -> a
