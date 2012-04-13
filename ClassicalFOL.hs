@@ -14,6 +14,8 @@ import Data.List
 import Data.Foldable (traverse_)
 import Data.IORef
 import Data.Typeable
+import Data.Word
+import Data.Bits
 import Control.Applicative
 import Control.Exception
 import Control.Monad
@@ -171,6 +173,44 @@ preorder fp fq a = tp a
     tq q@(RWeaken n x)  = RWeaken n <$ fq q <*> tp x
     tq q@(RContract n x) = RContract n <$ fq q <*> tp x
 
+-- words are easier to pass around, and 32 proof steps ought to be enough
+-- for anybody...
+intToBits :: Word -> [Int]
+intToBits 0 = [0]
+intToBits 1 = [1]
+intToBits n | n .&. 1 == 0 = 0 : intToBits (shiftR n 1)
+            | otherwise    = 1 : intToBits (shiftR n 1)
+
+update p is q = go p is where
+    go (Goal s) [] = return (Pending s q)
+    go _ [] = mzero
+    go (Goal _) (_:_) = mzero
+    go (Pending _ _) (_:_) = mzero
+    go (Proof s q') (i:is) =
+        let og (Cut l x y) 0 = Cut l <$> go x is <*> pure y
+            og (Cut l x y) 1 = Cut l <$> pure x <*> go y is
+            og (LConj n x) 0 = LConj n <$> go x is
+            og (LDisj n x y) 0 = LDisj n <$> go x is <*> pure y
+            og (LDisj n x y) 1 = LDisj n <$> pure x <*> go y is
+            og (LImp n x y) 0 = LImp n <$> go x is <*> pure y
+            og (LImp n x y) 1 = LImp n <$> pure x <*> go y is
+            og (LNot n x) 0 = LNot n <$> go x is
+            og (LForall n v x) 0 = LForall n v <$> go x is
+            og (LExists n x) 0 = LExists n <$> go x is
+            og (LContract n x) 0 = LContract n <$> go x is
+            og (LWeaken n x) 0 = LWeaken n <$> go x is
+            og (RConj n x y) 0 = RConj n <$> go x is <*> pure y
+            og (RConj n x y) 1 = RConj n <$> pure x <*> go y is
+            og (RDisj n x) 0 = RDisj n <$> go x is
+            og (RImp n x) 0 = RImp n <$> go x is
+            og (RNot n x) 0 = RNot n <$> go x is
+            og (RForall n x) 0 = RForall n <$> go x is
+            og (RExists n v x) 0 = RExists n v <$> go x is
+            og (RWeaken n x) 0 = RWeaken n <$> go x is
+            og (RContract n x) 0 = RContract n <$> go x is
+            og _ _ = mzero
+        in Proof s <$> og q' i
+
 proofComplete a = isJust (preorder fp fq a)
   where fp p@(Goal _) = mzero
         fp p@(Pending _ _) = mzero
@@ -180,6 +220,8 @@ proofComplete a = isJust (preorder fp fq a)
 hyp n = "Hyp" ++ show n
 con n = "Con" ++ show n
 
+-- XXX a travesty against types all around the world... because I was too
+-- lazy to actually write the case
 qNum Exact{} = 0
 qNum Cut{} = 2
 qNum LConj{} = 1
