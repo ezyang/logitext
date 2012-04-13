@@ -21,7 +21,9 @@ import Debug.Trace
 
 import Text.XML.Light
 
--- The fact that we rely on Coq's naming to be deterministic REALLY SUCKS
+-- We rely on naming being deterministic, so that we can have 'pure'
+-- proof data structures.  This is really not practical for real
+-- proofs, where we really can't keep the all of the old proof states.
 
 type V = String
 type PredV = String
@@ -30,9 +32,6 @@ type FunV = String
 -- Sequent
 data S = S [L] [L]
     deriving (Show, Eq)
-
--- We're not actually going to manipulate this; just use it for nice
--- printing.
 
 -- Elements in the universe.  Distinguish between a constant and a
 -- bound variable (probably not strictly necessary, but convenient)
@@ -46,7 +45,7 @@ instance CoqTerm U where
 
     fromCoq = coqToU Set.empty where
 
--- a bit specialized, sorry
+-- XXX A bit specialized (not fromCoq because we need sets)
 coqToU s (C.Atom n) | n `Set.member` s = Var n
                | otherwise = Fun n []
 coqToU s (C.App (C.Atom n) us) = Fun n (map (coqToU s) us)
@@ -64,9 +63,6 @@ data L = Pred PredV [U] -- could be (Pred "A" [])
     deriving (Show, Eq)
 
 instance CoqTerm L where
-    -- TODO use associated types to allow for custom state
-    -- that will be threaded through the fromCoq routine...
-
     toCoq (Pred p []) = C.Atom p
     toCoq (Pred p xs) = C.App (C.Atom p) (map toCoq xs)
     toCoq (Conj a b) = C.App (C.Atom "and") [toCoq a, toCoq b]
@@ -111,7 +107,6 @@ disjList (x:xs) = Disj x (disjList xs)
 
 -- quickcheck: listifyDisj (disjList xs) == xs
 
-
 -- Building up a proof tree is a multi-stage process.
 --
 -- You start off with a Goal S, where S is the thing you want to prove,
@@ -148,7 +143,7 @@ data Q a = Exact Int
          | RContract Int a
     deriving (Functor, Show)
 
--- preorder traversal
+-- preorder traversal (does a full rebuild)
 preorder fp fq a = tp a
   where
     -- XXX eep, only needs to be partial! Could use some GADTs here...
@@ -175,6 +170,12 @@ preorder fp fq a = tp a
     tq q@(RExists n v x) = RExists n v <$ fq q <*> tp x
     tq q@(RWeaken n x)  = RWeaken n <$ fq q <*> tp x
     tq q@(RContract n x) = RContract n <$ fq q <*> tp x
+
+proofComplete a = isJust (preorder fp fq a)
+  where fp p@(Goal _) = mzero
+        fp p@(Pending _ _) = mzero
+        fp p@(Proof _ _) = return undefined
+        fq _ = return undefined
 
 hyp n = "Hyp" ++ show n
 con n = "Con" ++ show n
@@ -291,6 +292,7 @@ refine' _ _ = error "pendingToHole: meta-implication must be phrased as implicat
 
 main = do
     let s = S [] [Pred "A" [], Not (Pred "A" [])]
+    -- actually kinda slow...
     print =<< refine (Goal s)
     print =<< refine (Pending s (RNot 1 0))
     print =<< refine (Proof s (RNot 1 (Goal (S [Pred "A" []] [Pred "A" []]))))
