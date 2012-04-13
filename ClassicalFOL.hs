@@ -178,20 +178,21 @@ eitherError = either (error . show) return
 
 qn s = QName s Nothing Nothing
 
--- bottom on input we don't understand
--- Nothing on tactic failure
-parseResponse :: [Content] -> Maybe S
+data CoqError = TacticFailure | NoMoreSubgoals
+    deriving (Show)
+
+-- but bottom on input we don't understand
+parseResponse :: [Content] -> Either CoqError S
 parseResponse raw = do
     let fake = Element (qn "fake") [] raw Nothing
         isInterestingProp (C.Typed (C.Atom n) (C.Sort C.Prop)) | "Hyp" `isPrefixOf` n = True
         isInterestingProp _ = False
     -- showElement fake `trace` return ()
-    when (isJust (findElement (qn "errorresponse") fake)) mzero
+    when (isJust (findElement (qn "errorresponse") fake)) (Left TacticFailure)
     -- yes, we're being partial here, but using ordering to
     -- ensure that the errors get sequenced correctly
     resp <- maybeError "pendingToHole: no response found" (findChild (qn "normalresponse") (Element (qn "fake") [] raw Nothing))
-    mstatus <- findAttr (qn "status") resp
-    -- done <- (== "no-more-subgoals") `traverse_` mstatus
+    (\s -> when (s == "no-more-subgoals") (Left NoMoreSubgoals)) `traverse_` findAttr (qn "status") resp
     hyps <- filter isInterestingProp
           . rights
           . map (C.parseTerm . strContent)
@@ -222,16 +223,20 @@ refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
             , "Variable P Q R : Prop."
             , "Set Printing All."
             ]
+    -- despite being horrible mutation, this plays an important
+    -- synchronizing role for us
     currentState <- newIORef undefined
     let run tac = do
             r <- evaluate . parseResponse =<< f tac
-            writeIORef currentState `traverse_` r
-            -- it turns out the actual proof state isn't that useful;
-            -- you conflate the /generated goals/ with /whether or
-            -- not the tactic succeeded/. Arguably, we should
-            -- rearchitect our interface around a different idea, but
-            -- it turns out it's kind of convenient to delay verifying S.
-            return (isJust r)
+            case r of
+                -- it turns out the actual proof state isn't that useful;
+                -- you conflate the /generated goals/ with /whether or
+                -- not the tactic succeeded/. Arguably, we should
+                -- rearchitect our interface around a different idea, but
+                -- it turns out it's kind of convenient to delay verifying S.
+                Right x -> writeIORef currentState x >> return True
+                Left TacticFailure -> return False
+                Left NoMoreSubgoals -> return True
         readState = readIORef currentState
         checkState s = readState >>= \s' -> assert (s == s') (return ())
     r <- run ("Goal " ++ C.render (toCoq (disjList cs)) ++ ".")
