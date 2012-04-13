@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, KindSignatures, ExistentialQuantification #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, KindSignatures, ExistentialQuantification, ScopedTypeVariables, DeriveDataTypeable #-}
 
 module ClassicalFOL where
 
@@ -11,9 +11,13 @@ import qualified Data.Set as Set
 import Data.Maybe
 import Data.Either
 import Data.List
+import Data.Foldable (traverse_)
+import Data.IORef
+import Data.Typeable
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Debug.Trace
 
 import Text.XML.Light
 
@@ -117,14 +121,12 @@ disjList (x:xs) = Disj x (disjList xs)
 -- but not knowing what the right proof step is.
 --
 -- You might suggest some inference rule Q, in which case
--- you now have an Attempt (Q i) (i happens to be the number of subgoals
--- this proof strategy will cause, but we don't care about that for
--- now.)  It's unknown if it will work.
---
--- Once we've passed it to Coq, we have a Proof, and we now open
--- subgoals as necessary.
+-- you now have an Proof (Q _) _, but we don't care about that for
+-- now.)  It's unknown if it will work.  If it has been passed to Coq,
+-- the third constructor is a Just containing the subgoals generated,
+-- which depends on the value of Q.
 
-data P = Goal S | forall i. Attempt S (Q i) | forall i. Proof S (Q i) (i P)
+data P = Goal S | forall i. Proof S (Q i) (Maybe (i P))
 -- P S Q | Pending | Hole S
 
 data Zero a = Zero
@@ -152,8 +154,8 @@ data Q (i :: * -> *) where
     RWeaken    :: Int   -> Q One
     RContract  :: Int   -> Q One
 
-hyp i = "Hyp" ++ show i
-con i = "Con" ++ show i
+hyp n = "Hyp" ++ show n
+con n = "Con" ++ show n
 
 -- We need to do a rather special mechanism of feeding the proof to Coq,
 -- because we need to find out what the intermediate proof state at
@@ -183,10 +185,13 @@ parseResponse raw = do
     let fake = Element (qn "fake") [] raw Nothing
         isInterestingProp (C.Typed (C.Atom n) (C.Sort C.Prop)) | "Hyp" `isPrefixOf` n = True
         isInterestingProp _ = False
+    -- showElement fake `trace` return ()
     when (isJust (findElement (qn "errorresponse") fake)) mzero
     -- yes, we're being partial here, but using ordering to
     -- ensure that the errors get sequenced correctly
     resp <- maybeError "pendingToHole: no response found" (findChild (qn "normalresponse") (Element (qn "fake") [] raw Nothing))
+    mstatus <- findAttr (qn "status") resp
+    -- done <- (== "no-more-subgoals") `traverse_` mstatus
     hyps <- filter isInterestingProp
           . rights
           . map (C.parseTerm . strContent)
@@ -195,15 +200,18 @@ parseResponse raw = do
     goal <- eitherError . C.parseTerm . strContent =<< maybeError "pendingToHole: no goal found" (findChild (qn "goal") resp)
     return (S (map fromCoq hyps) (listifyDisj (fromCoq goal)))
 
-pendingToHole :: P -> IO P
-pendingToHole p@(Goal s)      = pendingToHole' s p
-pendingToHole p@(Attempt s _) = pendingToHole' s p
-pendingToHole p@(Proof s _ _) = pendingToHole' s p
+refine :: P -> IO P
+refine p@(Goal s)      = refine' s p
+refine p@(Proof s _ _) = refine' s p
+
+data UpdateFailure = UpdateFailure
+    deriving (Typeable, Show)
+instance Exception UpdateFailure
 
 -- the S is kind of redundant but makes my life easier
-pendingToHole' :: S -> P -> IO P
+refine' :: S -> P -> IO P
 -- XXX not quite right
-pendingToHole' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
+refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
     -- XXX demand no errors
     mapM_ f [ "Section scratch."
             , "Parameter U : Set."
@@ -214,23 +222,34 @@ pendingToHole' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
             , "Variable P Q R : Prop."
             , "Set Printing All."
             ]
-    let goal' = toCoq (disjList cs)
-        run = evaluate . parseResponse <=< f
-    s' <- maybeError "pendingToHole: could not set goal" =<< run ("Goal " ++ C.render (toCoq (disjList cs)) ++ ".")
-    assert (s == s') (return ())
+    currentState <- newIORef undefined
+    let run tac = do
+            r <- evaluate . parseResponse =<< f tac
+            writeIORef currentState `traverse_` r
+            -- it turns out the actual proof state isn't that useful;
+            -- you conflate the /generated goals/ with /whether or
+            -- not the tactic succeeded/. Arguably, we should
+            -- rearchitect our interface around a different idea, but
+            -- it turns out it's kind of convenient to delay verifying S.
+            return (isJust r)
+        readState = readIORef currentState
+        checkState s = readState >>= \s' -> assert (s == s') (return ())
+    r <- run ("Goal " ++ C.render (toCoq (disjList cs)) ++ ".")
+    when (not r) $ error "refine: setting goal failed"
+    checkState s
 
-    let rec p@(Goal s) = run "admit." >> return p
-        rec p@(Attempt s t)
-            = (case t of
-                Exact n -> run ("myExact " ++ hyp n ++ ".") >> return ()
-                Cut l -> run ("myCut (" ++ C.render (toCoq l) ++ ").") >> return ()
-                _ -> return ())
-            >> return p
+    let go1 :: Maybe (One P) -> Bool -> IO (Maybe (One P))
+        go1 (Just (One _)) False = error "refine: inconsistent proof object"
+        go1 Nothing False = throwIO UpdateFailure
+        go1 (Just (One p)) True = Just . One <$> rec p
+        go1 Nothing True = Just . One . Goal <$> readState
+        rec p@(Goal s) = run "admit." >> return p
+        rec p@(Proof s (RNot n) m) = run ("rNot " ++ con n ++ ".") >>= go1 m >>= return . Proof s (RNot n)
 
-    return p
+    rec p
 -- XXX partial (not a particularly stringent requirement; you can get
 -- around it with a few intros / tactic applications
-pendingToHole' _ _ = error "pendingToHole: meta-implication must be phrased as implication"
+refine' _ _ = error "pendingToHole: meta-implication must be phrased as implication"
 
 main = let s = S [] [Pred "A" [], Not (Pred "A" [])]
-       in pendingToHole (Proof s (RNot 1) (One (Goal (S [Pred "A" []] [Pred "A" []]))))
+       in refine (Proof s (RNot 1) (Just (One (Goal (S [Pred "A" []] [Pred "A" []])))))
