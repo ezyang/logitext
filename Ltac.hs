@@ -18,4 +18,5 @@ instance Show Expr where
     -- show (Progress e) = "progress " ++ show e
     -- show (Solve es) = "solve [" ++ intercalate "|" (map show es) ++ "]"
     show (Tac s []) = s
+    -- XXX invariant: args must be appropriately parenthesized
     show (Tac s as) = s ++ " " ++ intercalate " " as

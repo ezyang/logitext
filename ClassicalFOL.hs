@@ -129,7 +129,7 @@ data Q a = Exact Int
          | LImp Int a a
          | LBot Int
          | LNot Int a
-         | LForall Int V a
+         | LForall Int U a
          | LExists Int a
          | LContract Int a
          | LWeaken Int a
@@ -138,7 +138,7 @@ data Q a = Exact Int
          | RImp Int a
          | RNot Int a
          | RForall Int a
-         | RExists Int V a
+         | RExists Int U a
          | RWeaken Int a
          | RContract Int a
     deriving (Functor, Show)
@@ -181,15 +181,48 @@ hyp n = "Hyp" ++ show n
 con n = "Con" ++ show n
 
 qNum Exact{} = 0
+qNum Cut{} = 2
+qNum LConj{} = 1
+qNum LDisj{} = 2
+qNum LImp{} = 2
+qNum LBot{} = 0
+qNum LNot{} = 1
+qNum LForall{} = 1
+qNum LExists{} = 1
+qNum LContract{} = 1
+qNum LWeaken{} = 1
+qNum RConj{} = 2
+qNum RDisj{} = 1
+qNum RImp{} = 1
 qNum RNot{} = 1
+qNum RForall{} = 1
+qNum RExists{} = 1
+qNum RWeaken{} = 1
+qNum RContract{} = 1
 
 qToTac (Exact n) = Tac "myExact" [hyp n]
 qToTac (Cut l _ _) = Tac "myCut" [C.render (toCoq l)]
+qToTac (LConj n _) = Tac "lConj" [hyp n]
+qToTac (LDisj n _ _) = Tac "lDisj" [hyp n]
+qToTac (LImp n _ _) = Tac "lImp" [hyp n]
+qToTac (LBot n) = Tac "lBot" []
+qToTac (LNot n _) = Tac "lNot" [hyp n]
+qToTac (LForall n v _) = Tac "lForall" [hyp n, C.render (toCoq v)]
+qToTac (LExists n _) = Tac "lExists" [hyp n]
+qToTac (LContract n _) = Tac "lContract" [hyp n]
+qToTac (LWeaken n _) = Tac "lWeaken" [hyp n]
+qToTac (RConj n _ _) = Tac "rConj" [con n]
+qToTac (RDisj n _) = Tac "rDisj" [con n]
+qToTac (RImp n _) = Tac "rImp" [con n]
 qToTac (RNot n _) = Tac "rNot" [con n]
+qToTac (RForall n _) = Tac "rForall" [con n]
+qToTac (RExists n v _) = Tac "rExists" [con n, C.render (toCoq v)]
+qToTac (RWeaken n _) = Tac "rWeaken" [con n]
+qToTac (RContract n _) = Tac "rContract" [con n]
 
 -- We need to do a rather special mechanism of feeding the proof to Coq,
 -- because we need to find out what the intermediate proof state at
--- various steps looks like.
+-- various steps looks like.  (Also, we'd kind of like to save work...)
 
 -- using error, not fail!  fail will have the wrong semantics
 -- when we're using Maybe
@@ -206,8 +239,6 @@ eitherError = either (error . show) return
 -- how humans, faced with a fact that is in fact false, can still make
 -- up plausible excuses.)
 
-qn s = QName s Nothing Nothing
-
 data CoqError = TacticFailure | NoMoreSubgoals
     deriving (Show)
 
@@ -217,6 +248,7 @@ parseResponse raw = do
     let fake = Element (qn "fake") [] raw Nothing
         extractHyp (C.Typed (C.Atom _) (C.App (C.Atom "Hyp") [l])) = Just l
         extractHyp _ = Nothing
+        qn s = QName s Nothing Nothing
     -- showElement fake `trace` return ()
     when (isJust (findElement (qn "errorresponse") fake)) (Left TacticFailure)
     -- yes, we're being partial here, but using ordering to
@@ -255,35 +287,30 @@ refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
             , "Set Printing All"
             ]
     -- despite being horrible mutation, this plays an important
-    -- synchronizing role for us
-    currentState <- newIORef undefined
+    -- synchronizing role for us; it lets us make sure that "what we
+    -- see" is what we expect; also, immediately after we run a tactic
+    -- is not /quite/ the right place to check the result
+    currentState <- newIORef Nothing
     let run tac = do
             -- putStrLn tac
             r <- evaluate . parseResponse =<< f tac
             case r of
-                -- it turns out the actual proof state isn't that useful;
-                -- you conflate the /generated goals/ with /whether or
-                -- not the tactic succeeded/. Arguably, we should
-                -- rearchitect our interface around a different idea, but
-                -- it turns out it's kind of convenient to delay verifying S.
-                Right x -> writeIORef currentState x >> return True
+                Right x -> writeIORef currentState (Just x) >> return True
                 Left TacticFailure -> return False
-                Left NoMoreSubgoals -> return True
+                Left NoMoreSubgoals -> writeIORef currentState Nothing >> return True
         readState = readIORef currentState
-        checkState s = readState >>= \s' -> assert (s == s') (return ())
+        checkState s = readState >>= \s' -> assert (Just s == s') (return ())
     r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
     when (not r) $ error "refine: setting goal failed"
-
     let fp p@(Goal s) = checkState s >> return p
-        -- TODO also check goal adjustment is correct
+        -- TODO also check if change in number of subgoals is correct
         fp p@(Pending s q) = do
             checkState s
             run (show (qToTac q)) >>= (`unless` throwIO UpdateFailure)
-            gs <- replicateM (qNum q) (readState <* (run "admit" >>= (`unless` error "refine: could not admit")))
+            gs <- replicateM (qNum q) (fromJust <$> readState <* (run "admit" >>= (`unless` error "refine: could not admit")))
             return (Proof s (fmap (Goal . (gs !!)) q))
         fp (Proof s _) = checkState s >> return undefined
         fq q = run (show (qToTac q)) >>= (`unless` error "refine: inconsistent proof state")
-
     preorder fp fq p
 
 -- XXX partial (not a particularly stringent requirement; you can get
@@ -292,7 +319,7 @@ refine' _ _ = error "pendingToHole: meta-implication must be phrased as implicat
 
 main = do
     let s = S [] [Pred "A" [], Not (Pred "A" [])]
-    -- actually kinda slow...
+    -- XXX actually kinda slow...
     print =<< refine (Goal s)
     print =<< refine (Pending s (RNot 1 0))
     print =<< refine (Proof s (RNot 1 (Goal (S [Pred "A" []] [Pred "A" []]))))
