@@ -23,7 +23,7 @@ fun speculate (s : state) : xbody =
   <xml><div class={preview}><button value="-1"/>, <button value="+1"/> ⊢ {[s]}</div></xml>
 
 (* rpc should be able to deal with anonymous expressions; just lambda-lift that
-fun zorp n : transaction int = return (Haskell.test n)
+fun zorp n : transaction int =
     <button onclick={v <- rpc (zorp 2); set k <xml>{[v]}</xml>} value="+1" />*)
 
 fun generate s =
@@ -61,13 +61,16 @@ fun generate s =
   end
 
 fun main () =
-  tbl <- generate (Haskell.test 0);
+  tbl <- generate 0;
   seqid <- fresh;
   return <xml>
     <head>
       <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
     </head>
     <body onload={Js.infinitedrag seqid tbl}>
+      <div>{[
+          (Haskell.refine "{\"Pending\":[{\"cons\":[{\"Pred\":[\"A\",[]]},{\"Not\":{\"Pred\":[\"A\",[]]}}],\"hyps\":[]},{\"RNot\":[1,0]}]}")
+          ]}</div>
       <div class={viewport}>
         <div id={seqid} class={sequent}>&nbsp;</div>
       </div>

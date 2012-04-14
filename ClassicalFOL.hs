@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, KindSignatures, ExistentialQuantification, ScopedTypeVariables, DeriveDataTypeable, DeriveFunctor, NoMonomorphismRestriction #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, KindSignatures, ExistentialQuantification, ScopedTypeVariables, DeriveDataTypeable, DeriveFunctor, NoMonomorphismRestriction, ViewPatterns #-}
 
 module ClassicalFOL where
 
@@ -16,11 +16,14 @@ import Data.IORef
 import Data.Typeable
 import Data.Word
 import Data.Bits
+import Data.Data
+import qualified Data.ByteString.Lazy as Lazy
+import Data.Aeson.Generic
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Control.Monad.IO.Class
 import Debug.Trace
-
 import Text.XML.Light
 
 -- We rely on naming being deterministic, so that we can have 'pure'
@@ -32,14 +35,27 @@ type PredV = String
 type FunV = String
 
 -- Sequent
-data S = S [L] [L]
-    deriving (Show, Eq)
+data S = S { hyps :: [L], cons :: [L] }
+    deriving (Show, Eq, Data, Typeable)
+
+{-
+instance JSON S where
+    readJSON (JSObject (fromJSObject -> o)) =
+        case lookup "hyps" o of
+        Just hyps ->
+            case lookup "cons" o of
+            Just cons -> S <$> readJSONs hyps <*> readJSONs cons
+            _ -> Error "Could not read S"
+        _ -> Error "Could not read S"
+    readJSON _ = Error "Could not read S"
+    showJSON (S hyps cons) = makeObj [("hyps", showJSONs hyps), ("cons", showJSONs cons)]
+-}
 
 -- Elements in the universe.  Distinguish between a constant and a
 -- bound variable (probably not strictly necessary, but convenient)
 data U = Fun FunV [U]
        | Var V
-    deriving (Show, Eq)
+    deriving (Show, Eq, Data, Typeable)
 
 instance CoqTerm U where
     toCoq (Fun f xs) = C.App (C.Atom f) (map toCoq xs)
@@ -62,7 +78,7 @@ data L = Pred PredV [U] -- could be (Pred "A" [])
        | Bot
        | Forall V L
        | Exists V L
-    deriving (Show, Eq)
+    deriving (Show, Eq, Data, Typeable)
 
 instance CoqTerm L where
     toCoq (Pred p []) = C.Atom p
@@ -122,7 +138,7 @@ disjList (x:xs) = Disj x (disjList xs)
 -- and replace it with a Proof term.
 
 data P = Goal S | Pending S (Q Int) | Proof S (Q P)
-    deriving (Show)
+    deriving (Show, Data, Typeable)
 
 data Q a = Exact Int
          | Cut L a a
@@ -143,7 +159,7 @@ data Q a = Exact Int
          | RExists Int U a
          | RWeaken Int a
          | RContract Int a
-    deriving (Functor, Show)
+    deriving (Functor, Show, Data, Typeable)
 
 -- preorder traversal (does a full rebuild)
 preorder fp fq a = tp a
@@ -359,11 +375,19 @@ refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
 -- around it with a few intros / tactic applications
 refine' _ _ = error "pendingToHole: meta-implication must be phrased as implication"
 
+refineString :: Lazy.ByteString -> IO (Maybe Lazy.ByteString)
+refineString s =
+    case decode s of
+    Just a -> Just . encode <$> refine a
+    _ -> return Nothing
+
 main = do
     let s = S [] [Pred "A" [], Not (Pred "A" [])]
     -- XXX actually kinda slow...
+    {-
     print =<< refine (Goal s)
     print =<< refine (Pending s (RNot 1 0))
     print =<< refine (Proof s (RNot 1 (Goal (S [Pred "A" []] [Pred "A" []]))))
     print =<< refine (Proof s (RNot 1 (Pending (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
-    print =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
+    -}
+    print . encode =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))

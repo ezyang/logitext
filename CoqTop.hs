@@ -7,7 +7,7 @@ module CoqTop
 import Prelude hiding (catch)
 import System.IO
 import System.Process
-import Control.Concurrent
+import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.Chan
 import Control.Concurrent.MVar
 import Control.Exception
@@ -31,7 +31,7 @@ coqtopProcess theory err = CreateProcess
     , std_in = CreatePipe
     , std_out = CreatePipe
     , std_err = UseHandle err
-    , close_fds = True
+    , close_fds = False
     }
 
 onlyOnce :: IO () -> IO (IO ())
@@ -40,6 +40,7 @@ onlyOnce m = do
     return (modifyMVar_ i (\m -> m >> return (return ())))
 
 coqtopRaw theory = do
+    putStrLn "Starting up coqtop..."
     -- XXX We're not really doing good things with warnings.
     -- Fortunately, fatal errors DO get put on stdout.
     err <- openFile "/dev/null" WriteMode -- XXX gimme a platform independent version!
@@ -62,9 +63,11 @@ coqtopRaw theory = do
     interactVar <- newMVar (\s -> hPutStr fin (s ++ ".\n") >> readChan resultChan)
     let interact s = withMVar interactVar (\f -> f s)
     end <- onlyOnce $ do
+        putStrLn "Closing coqtop..."
         killThread tout
         hClose fin
         hClose fout
+        hClose err
         m <- getProcessExitCode pid
         maybe (terminateProcess pid) (const (return ())) m
         -- We're erring on the safe side here.  If no escape of coqtop
