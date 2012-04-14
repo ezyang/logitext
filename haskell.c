@@ -10,5 +10,7 @@ uw_Basis_string uw_Haskell_refine(uw_context ctx, uw_Basis_string i) {
 
 uw_Basis_unit uw_Haskell_init(uw_context ctx) {
     hs_init(NULL, NULL);
+    // XXX big ugly hack.  If you remove it the event manager crashes
+    // for some odd reason
     ensureIOManagerIsRunning();
 }

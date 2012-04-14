@@ -56,6 +56,7 @@ coqtopRaw theory = do
             p _ = False
         in writeList2Chan resultChan . split (keepDelimsR (whenElt p)) =<< parseXML `fmap` hGetContents fout
     _ <- readChan resultChan -- read out the intro message
+    putStrLn "Ready coqtop"
     -- XXX this doesn't do particularly good things if you don't
     -- pass it enough information.  Correct thing to do is on COQ
     -- side say "I want more information!"  Nor does it do good things

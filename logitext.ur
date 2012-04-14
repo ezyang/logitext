@@ -63,16 +63,16 @@ fun generate s =
 fun main () =
   tbl <- generate 0;
   seqid <- fresh;
-  return <xml>
-    <head>
-      <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
-    </head>
-    <body onload={Js.infinitedrag seqid tbl}>
-      <div>{[
-          (Haskell.refine "{\"Pending\":[{\"cons\":[{\"Pred\":[\"A\",[]]},{\"Not\":{\"Pred\":[\"A\",[]]}}],\"hyps\":[]},{\"RNot\":[1,0]}]}")
-          ]}</div>
-      <div class={viewport}>
-        <div id={seqid} class={sequent}>&nbsp;</div>
-      </div>
-    </body>
-  </xml>
+  let val x = Option.get "" (Haskell.refine "{\"Pending\":[{\"cons\":[{\"Pred\":[\"A\",[]]},{\"Not\":{\"Pred\":[\"A\",[]]}}],\"hyps\":[]},{\"RNot\":[1,0]}]}")
+  in return <xml>
+        <head>
+          <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
+        </head>
+        <body onload={Js.infinitedrag seqid tbl}>
+          <div>{[x]}</div>
+          <div class={viewport}>
+            <div id={seqid} class={sequent}>&nbsp;</div>
+          </div>
+        </body>
+      </xml>
+  end
