@@ -6,6 +6,52 @@ open Json
 
 task initialize = Haskell.init
 
+con tests a :: {Type} = [TestA = int, TestB = int * a]
+con test a :: Type = variant (tests a)
+
+val testb = make [#TestB] (2, True)
+val testbint = match testb {TestA = (fn n => n), TestB = (fn (n, _) => n)}
+
+
+datatype universe =
+    Fun of string * list universe
+  | Var of string
+datatype logic =
+    Pred of string * list universe
+  | Conj of logic * logic
+  | Disj of logic * logic
+  | Imp of logic * logic
+  | Not of logic
+  | Top
+  | Bot
+  | Forall of string * logic
+  | Exists of string * logic
+datatype sequent =
+    Sequent of list logic * list logic
+datatype tactic a =
+    Exact of int
+  | Cut of logic * a * a
+  | LConj of int * a
+  | LDisj of int * a * a
+  | LImp of int * a * a
+  | LBot of int
+  | LNot of int * a
+  | LForall of int * universe * a
+  | LContract of int * a
+  | LWeaken of int * a
+  | RConj of int * a * a
+  | RDisj of int * a
+  | RImp of int * a
+  | RNot of int * a
+  | RForall of int * a
+  | RExists of int * universe * a
+  | RWeaken of int * a
+  | RContract of int * a
+datatype proof =
+    Goal of sequent
+  | Pending of sequent * tactic int
+  | Proof of sequent * tactic proof
+
 con state = int
 datatype action = Inc | Dec
 datatype mode = Preview | Final
