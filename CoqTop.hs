@@ -2,6 +2,7 @@
 
 module CoqTop
     ( coqtop
+    , coqtopRaw
     ) where
 
 import Prelude hiding (catch)

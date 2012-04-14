@@ -5,3 +5,6 @@
 .#*
 *.hi
 *_stub.*
+*.glob
+*.vo
+core

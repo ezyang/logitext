@@ -23,6 +23,8 @@ import Control.Applicative
 import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Concurrent.MVar
+import System.IO.Unsafe
 import Debug.Trace
 import Text.XML.Light
 
@@ -330,20 +332,30 @@ data UpdateFailure = UpdateFailure
     deriving (Typeable, Show)
 instance Exception UpdateFailure
 
+-- XXX leaky leak leak.  Also, it's a bottleneck.  (Try using a resource
+-- pool or something)
+{-# NOINLINE theCoq #-}
+theCoq = unsafePerformIO $ do
+    (interact, _) <- coqtopRaw "ClassicalFOL"
+    mapM_ interact
+        [ "Section scratch"
+        , "Parameter U : Set"
+        -- XXX factor these constants out
+        , "Variable z : U"
+        , "Variable f g h : U -> U"
+        , "Variable A B C : Prop"
+        , "Variable P Q R : Prop"
+        , "Set Printing All"
+        , "Set Default Timeout 1" -- should be more than enough! no proof search see?
+        , "Set Undo 0" -- not gonna use it
+        ]
+    newMVar interact
+
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
 -- XXX not quite right
-refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
+refine' s@(S [] cs) p = withMVar theCoq $ \f -> do
     -- XXX demand no errors
-    mapM_ f [ "Section scratch"
-            , "Parameter U : Set"
-            -- XXX factor these constants out
-            , "Variable z : U"
-            , "Variable f g h : U -> U"
-            , "Variable A B C : Prop"
-            , "Variable P Q R : Prop"
-            , "Set Printing All"
-            ]
     -- despite being horrible mutation, this plays an important
     -- synchronizing role for us; it lets us make sure that "what we
     -- see" is what we expect; also, immediately after we run a tactic
@@ -369,7 +381,7 @@ refine' s@(S [] cs) p = coqtop "ClassicalFOL" $ \f -> do
             return (Proof s (fmap (Goal . (gs !!)) q))
         fp (Proof s _) = checkState s >> return undefined
         fq q = run (show (qToTac q)) >>= (`unless` error "refine: inconsistent proof state")
-    preorder fp fq p
+    preorder fp fq p `finally` f "Abort All"
 
 -- XXX partial (not a particularly stringent requirement; you can get
 -- around it with a few intros / tactic applications
