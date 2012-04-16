@@ -109,7 +109,8 @@ fun generate s =
 fun main () =
   tbl <- generate 0;
   seqid <- fresh;
-  let val x = Option.get "" (Haskell.refine "{\"Pending\":[{\"cons\":[{\"Pred\":[\"A\",[]]},{\"Not\":{\"Pred\":[\"A\",[]]}}],\"hyps\":[]},{\"RNot\":[1,0]}]}")
+  let val x = Option.get "" (Haskell.refine "{\"Proof\":{\"1\":{\"RNot\":{\"1\":{\"Proof\":{\"1\":{\"Exact\":0},\"0\":{\"cons\":[{\"Pred\":{\"1\":[],\"0\":\"A\"}}],\"hyps\":[{\"Pred\":{\"1\":[],\"0\":\"A\"}}]}}},\"0\":1}},\"0\":{\"cons\":[{\"Pred\":{\"1\":[],\"0\":\"A\"}},{\"Not\":{\"Pred\":{\"1\":[],\"0\":\"A\"}}}],\"hyps\":[]}}}"
+  )
   in return <xml>
         <head>
           <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />

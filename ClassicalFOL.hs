@@ -6,6 +6,7 @@ import qualified Coq as C
 import Coq (CoqTerm(..))
 import Ltac
 import CoqTop
+import JSONGeneric
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Maybe
@@ -18,7 +19,6 @@ import Data.Word
 import Data.Bits
 import Data.Data
 import qualified Data.ByteString.Lazy as Lazy
-import Data.Aeson.Generic
 import Control.Applicative
 import Control.Exception
 import Control.Monad
@@ -27,6 +27,12 @@ import Control.Concurrent.MVar
 import System.IO.Unsafe
 import Debug.Trace
 import Text.XML.Light
+import Data.Aeson.Types (Result(..), Value(..))
+import Data.Aeson (json')
+import qualified Data.Aeson.Encode as E
+
+import Data.Attoparsec (Parser)
+import qualified Data.Attoparsec.Lazy as L -- XXX swap me out
 
 -- We rely on naming being deterministic, so that we can have 'pure'
 -- proof data structures.  This is really not practical for real
@@ -387,10 +393,19 @@ refine' s@(S [] cs) p = withMVar theCoq $ \f -> do
 -- around it with a few intros / tactic applications
 refine' _ _ = error "pendingToHole: meta-implication must be phrased as implication"
 
+-- XXX nicked from Aeson.Parser.Internal
+decodeWith :: Parser Value -> (Value -> Result a) -> Lazy.ByteString -> Maybe a
+decodeWith p to s =
+    case L.parse p s of
+      L.Done _ v -> case to v of
+                      Success a -> Just a
+                      _         -> Nothing
+      _          -> Nothing
+
 refineString :: Lazy.ByteString -> IO (Maybe Lazy.ByteString)
 refineString s =
-    case decode s of
-    Just a -> Just . encode <$> refine a
+    case decodeWith json' fromJSON s of
+    Just a -> Just . E.encode . toJSON <$> refine a
     _ -> return Nothing
 
 main = do
@@ -402,4 +417,5 @@ main = do
     print =<< refine (Proof s (RNot 1 (Goal (S [Pred "A" []] [Pred "A" []]))))
     print =<< refine (Proof s (RNot 1 (Pending (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
     -}
-    print . encode =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
+    print . E.encode . toJSON =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
+    (print :: Maybe P -> IO ()) . decodeWith json' fromJSON . E.encode . toJSON =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))

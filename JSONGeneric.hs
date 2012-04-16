@@ -54,7 +54,6 @@ toJSON_generic = generic
                                   show r ++ "(" ++ show dt ++ ")"
         -- Encode variants as an object with the constructor
         -- name as the single field and the data as the value.
-        encodeConstr c [] = String . constrString $ c
         encodeConstr c as = object [(constrString c, encodeArgs c as)]
 
         constrString = pack . showConstr
@@ -73,6 +72,10 @@ type F a = Parser a
 parseJSON :: (Data a) => Value -> Parser a
 parseJSON j = parseJSON_generic j
              `ext1R` list
+             -- fascinating, apparently you need this instance or it
+             -- won't manage to parse it properly. But you don't need it
+             -- for lists...
+             `ext1R` vector
              `extR` (value :: F Int)
              `extR` (value :: F String)
              `extR` (value :: F Bool)
@@ -82,6 +85,11 @@ parseJSON j = parseJSON_generic j
     value = T.parseJSON j
     list :: (Data a) => Parser [a]
     list = V.toList <$> parseJSON j
+    vector :: (Data a) => Parser (V.Vector a)
+    vector = case j of
+               Array js -> V.mapM parseJSON js
+               _        -> myFail
+    myFail = modFail "parseJSON" $ "bad data: " ++ show j
 
 fromJSON :: (Data a) => Value -> Result a
 fromJSON = parse parseJSON
@@ -110,6 +118,8 @@ parseJSON_generic j = generic
         decodeArgs c0 = go (numConstrArgs (resType generic) c0) c0
                            (constrFields c0)
          where
+          go 0 c []       jd         = construct c [] -- nullary constructor
+          go 1 c []       jd         = construct c [jd] -- unary constructor
           go d c []       jd         = go d c (map show [0..d-1]) jd
           go _ c fs@(_:_) (Object o) = selectFields o fs >>=
                                        construct c -- field names
@@ -155,10 +165,18 @@ genericToFromJSONFoo :: Foo -> Bool
 genericToFromJSONFoo = genericToFromJSON
 
 data Foo = Foo {
-      fooInt :: Int
+      fooInt :: [Maybe String]
+      {-
+    , fooUnit :: Qua ()
     , fooTuple :: (String, Int)
-    } | Bar Int Int deriving (Show, Typeable, Data, Eq)
+    -}
+    } | Bar Int Int | Baz deriving (Show, Typeable, Data, Eq)
+
+data Qua a = Tua a a deriving (Show, Typeable, Data, Eq)
 
 instance Arbitrary Foo where
-    arbitrary = oneof [liftM2 Foo arbitrary arbitrary, liftM2 Bar arbitrary arbitrary]
+    --arbitrary = oneof [liftM3 Foo arbitrary arbitrary arbitrary, liftM3 Bar arbitrary arbitrary arbitrary, return Baz]
+    arbitrary = oneof [liftM Foo arbitrary, liftM2 Bar arbitrary arbitrary, return Baz, liftM2 Bar arbitrary arbitrary, return Baz]
 
+instance Arbitrary a => Arbitrary (Qua a) where
+    arbitrary = liftM2 Tua arbitrary arbitrary
