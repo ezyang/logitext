@@ -6,12 +6,34 @@ open Json
 
 task initialize = Haskell.init
 
-con tests a :: {Type} = [TestA = int, TestB = int * a]
-con test a :: Type = variant (tests a)
-
-val testb = make [#TestB] (2, True)
-val testbint = match testb {TestA = (fn n => n), TestB = (fn (n, _) => n)}
-
+con godz' a = [1 = string, 2 = list a]
+con godz a =
+  [Fun = $(godz' a),
+   Var = string]
+con gods a = variant (godz a)
+val json_gods [a ::: Type] (fl : folder (godz a)) (fl' : folder (godz' a)) (j : json a) : json (gods a) =
+    @json_variant fl
+        {Fun = @json_record _
+                (json_string, json_list)
+                ("1", "2"),
+         Var = json_string}
+        {Fun = "Fun",
+         Var = "Var"}
+datatype god = God of gods god
+val json_god' (fl : folder (godz god)) (fl' : folder (godz' god)) () : json god =
+  let val rec god_to_json (God r) = let val j : json (gods god) = jf ()
+                                    in toJson r
+                                    end
+      and     god_from_json s = let val j = jf ()
+                                    val (r, s') = fromJson' s
+                                in (God r, s')
+                                end
+      and     jf () : json (gods god) = @json_gods fl fl' (tc ())
+      and     tc () : json god = mkJson {ToJson = god_to_json,
+                                         FromJson = god_from_json}
+  in tc ()
+  end
+val json_god : json god = json_god' ()
 
 datatype universe =
     Fun of string * list universe
@@ -109,7 +131,7 @@ fun generate s =
 fun main () =
   tbl <- generate 0;
   seqid <- fresh;
-  let val x = Option.get "" (Haskell.refine "{\"Proof\":{\"1\":{\"RNot\":{\"1\":{\"Proof\":{\"1\":{\"Exact\":0},\"0\":{\"cons\":[{\"Pred\":{\"1\":[],\"0\":\"A\"}}],\"hyps\":[{\"Pred\":{\"1\":[],\"0\":\"A\"}}]}}},\"0\":1}},\"0\":{\"cons\":[{\"Pred\":{\"1\":[],\"0\":\"A\"}},{\"Not\":{\"Pred\":{\"1\":[],\"0\":\"A\"}}}],\"hyps\":[]}}}"
+  let val x = Option.get "" (Haskell.refine "{\"Proof\":{\"2\":{\"RNot\":{\"2\":{\"Proof\":{\"2\":{\"Exact\":0},\"1\":{\"cons\":[{\"Pred\":{\"2\":[],\"1\":\"A\"}}],\"hyps\":[{\"Pred\":{\"2\":[],\"1\":\"A\"}}]}}},\"1\":1}},\"1\":{\"cons\":[{\"Pred\":{\"2\":[],\"1\":\"A\"}},{\"Not\":{\"Pred\":{\"2\":[],\"1\":\"A\"}}}],\"hyps\":[]}}}"
   )
   in return <xml>
         <head>

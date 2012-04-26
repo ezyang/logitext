@@ -64,7 +64,7 @@ toJSON_generic = generic
         -- and use an object if there are field names.
         encodeArgs c = encodeArgs' (constrFields c)
         encodeArgs' [] [j] = j
-        encodeArgs' [] js  = encodeArgs' (map show [0..]) js
+        encodeArgs' [] js  = encodeArgs' (map show [1..]) js
         encodeArgs' ns js  = object $ zip (map pack ns) js
 
 type F a = Parser a
@@ -120,7 +120,7 @@ parseJSON_generic j = generic
          where
           go 0 c []       jd         = construct c [] -- nullary constructor
           go 1 c []       jd         = construct c [jd] -- unary constructor
-          go d c []       jd         = go d c (map show [0..d-1]) jd
+          go d c []       jd         = go d c (map show [1..d]) jd
           go _ c fs@(_:_) (Object o) = selectFields o fs >>=
                                        construct c -- field names
           go _ c _        jd         = modFail "parseJSON" $
