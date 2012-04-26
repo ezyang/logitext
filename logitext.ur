@@ -6,73 +6,83 @@ open Json
 
 task initialize = Haskell.init
 
-con godz' a = [1 = string, 2 = list a]
-con godz a =
-  [Fun = $(godz' a),
-   Var = string]
-con gods a = variant (godz a)
-val json_gods [a ::: Type] (fl : folder (godz a)) (fl' : folder (godz' a)) (j : json a) : json (gods a) =
-    @json_variant fl
-        {Fun = @json_record _
-                (json_string, json_list)
-                ("1", "2"),
-         Var = json_string}
-        {Fun = "Fun",
-         Var = "Var"}
-datatype god = God of gods god
-val json_god' (fl : folder (godz god)) (fl' : folder (godz' god)) () : json god =
-  let val rec god_to_json (God r) = let val j : json (gods god) = jf ()
-                                    in toJson r
-                                    end
-      and     god_from_json s = let val j = jf ()
-                                    val (r, s') = fromJson' s
-                                in (God r, s')
-                                end
-      and     jf () : json (gods god) = @json_gods fl fl' (tc ())
-      and     tc () : json god = mkJson {ToJson = god_to_json,
-                                         FromJson = god_from_json}
-  in tc ()
-  end
-val json_god : json god = json_god' ()
+(* This hack is HILARIOUS. Also a little sad. *)
 
-datatype universe =
-    Fun of string * list universe
-  | Var of string
-datatype logic =
-    Pred of string * list universe
-  | Conj of logic * logic
-  | Disj of logic * logic
-  | Imp of logic * logic
-  | Not of logic
-  | Top
-  | Bot
-  | Forall of string * logic
-  | Exists of string * logic
-datatype sequent =
-    Sequent of list logic * list logic
-datatype tactic a =
-    Exact of int
-  | Cut of logic * a * a
-  | LConj of int * a
-  | LDisj of int * a * a
-  | LImp of int * a * a
-  | LBot of int
-  | LNot of int * a
-  | LForall of int * universe * a
-  | LContract of int * a
-  | LWeaken of int * a
-  | RConj of int * a * a
-  | RDisj of int * a
-  | RImp of int * a
-  | RNot of int * a
-  | RForall of int * a
-  | RExists of int * universe * a
-  | RWeaken of int * a
-  | RContract of int * a
-datatype proof =
-    Goal of sequent
-  | Pending of sequent * tactic int
-  | Proof of sequent * tactic proof
+structure Universe = Json.Recursive(struct
+  con t a = variant [Fun = string * list a,
+                     Var = string]
+  fun json_t [a] (_ : json a) : json (t a) =
+    let val json_fun : json (string * list a) = json_record ("1", "2")
+    in json_variant {Fun = "Fun", Var = "Var"}
+    end
+end)
+type universe = Universe.r
+
+structure Logic = Json.Recursive(struct
+  con t a = variant [Pred = string * list universe,
+                     Conj = a * a,
+                     Disj = a * a,
+                     Imp = a * a,
+                     Not = a,
+                     Top = unit,
+                     Bot = unit,
+                     Forall = string * a,
+                     Exists = string * a]
+  fun json_t [a] (_ : json a) : json (t a) =
+    let val json_pred : json (string * list universe) = json_record ("1", "2")
+        val json_compound : json (a * a) = json_record ("1", "2")
+        val json_quantifier : json (string * a) = json_record ("1", "2")
+    in json_variant {Pred = "Pred", Conj = "Conj", Disj = "Disj", Imp = "Imp",
+          Not = "Not", Top = "Top", Bot = "Bot", Forall = "Forall", Exists = "Exists"}
+    end
+end)
+type logic = Logic.r
+
+type sequent = { Hyps : list logic, Cons : list logic }
+val json_sequent : json sequent = json_record {Hyps = "Hyps", Cons = "Cons"}
+
+con tactic a = variant [Exact = int,
+                        Cut = logic * a * a,
+                        LConj = int * a,
+                        LDisj = int * a * a,
+                        LImp = int * a * a,
+                        LBot = int,
+                        LNot = int * a,
+                        LForall = int * universe * a,
+                        LContract = int * a,
+                        LWeaken = int * a,
+                        RConj = int * a * a,
+                        RDisj = int * a,
+                        RImp = int * a,
+                        RNot = int * a,
+                        RForall = int * a,
+                        RExists = int * universe * a,
+                        RWeaken = int * a,
+                        RContract = int * a]
+fun json_tactic [a] (_ : json a) : json (tactic a) =
+  let val json_cut : json (logic * a * a) = json_record ("1", "2", "3")
+      val json_single : json (int * a) = json_record ("1", "2")
+      val json_double : json (int * a * a) = json_record ("1", "2", "3")
+      val json_instance : json (int * universe * a) = json_record ("1", "2", "3")
+  in json_variant {Exact = "Exact", Cut = "Cut", LConj = "LConj", LDisj = "LDisj",
+        LImp = "LImp", LBot = "LBot", LNot = "LNot", LForall = "LForall",
+        LContract = "LContract", LWeaken = "LWeaken", RConj = "RConj", RDisj = "RDisj",
+        RImp = "RImp", RNot = "RNot", RForall = "RForall", RExists = "Rexists",
+        RWeaken = "Rweaken", RContract = "RContract"}
+  end
+
+structure Proof = Json.Recursive(struct
+  con t a = variant [Goal = sequent,
+                     Pending = sequent * tactic int,
+                     Proof = sequent * tactic a]
+  fun json_t [a] (j : json a) : json (t a) =
+    let val json_tactic : json (tactic a) = json_tactic
+        val json_pending : json (sequent * tactic int) = json_record ("1", "2")
+        val json_proof : json (sequent * tactic a) = json_record ("1", "2")
+    in json_variant {Goal = "Goal", Pending = "Pending", Proof = "Proof"}
+    end
+end)
+type proof = Proof.r
 
 con state = int
 datatype action = Inc | Dec
