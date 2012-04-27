@@ -7,11 +7,13 @@ do
     (
         ghc --make -c ClassicalFOLFFI.hs haskell.c && \
         urweb logitext && \
-        (./logitext.exe &) && \
-        sleep 1 && \
-        (curl "http://localhost:8080/main" &> /dev/null)
+        ./logitext.exe
+        #(./logitext.exe &) && \
+        #sleep 1 && \
+        #(curl "http://localhost:8080/main" &> /dev/null)
     ) &
     PID=$!
     inotifywait -e modify $(git ls-files) 2> /dev/null
     kill $PID
+    pkill logitext.exe
 done
