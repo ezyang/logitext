@@ -8,6 +8,8 @@ script http://localhost/logitext/jquery.infinitedrag.js
 script http://localhost/logitext/ffi.js
 jsFunc Js.infinitedrag=infinitedrag
 clientOnly Js.infinitedrag
+clientOnly Logitext.renderProof
+clientOnly Logitext.renderSequent
 ffi js
 
 $/option
