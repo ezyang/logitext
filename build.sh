@@ -5,7 +5,8 @@ while true
 do
     reset
     (
-        ghc --make -c ClassicalFOLFFI.hs haskell.c && \
+        ghc --make -c ClassicalFOLFFI.hs && \
+        ghc --make -c haskell.c && \
         urweb logitext && \
         ./logitext.exe
         #(./logitext.exe &) && \
