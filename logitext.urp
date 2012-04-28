@@ -2,9 +2,6 @@ allow url http://localhost/logitext/style.css
 rewrite all Logitext/*
 library haskell
 library meta
-script http://localhost/logitext/jquery.js
-script http://localhost/logitext/jquery-ui.js
-script http://localhost/logitext/jquery.infinitedrag.js
 script http://localhost/logitext/ffi.js
 jsFunc Js.infinitedrag=infinitedrag
 clientOnly Js.infinitedrag

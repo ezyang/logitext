@@ -133,7 +133,7 @@ end)
 type proof = Proof.r
 fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><a onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#Exact] i))),
+      <xml><li><span onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#Exact] i))),
                                     Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LConj] (i, -1)))),
                                     Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LDisj] (i, -1, -1)))),
                                     Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LImp] (i, -1, -1)))),
@@ -143,11 +143,11 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
                                     Forall = fn _ => return (),
                                     Exists = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LExists] (i, -1))))
                                     }}>
-        {renderLogic 0 (Logic.Rec x)}</a></li></xml>) s.Hyps}
+        {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps}
     </ul>
       ⊢
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><a onclick={match x {Pred = fn _ => return (),
+      <xml><li><span onclick={match x {Pred = fn _ => return (),
                                     Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RConj] (i, -1, -1)))),
                                     Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RDisj] (i, -1)))),
                                     Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RImp] (i, -1)))),
@@ -157,7 +157,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
                                     Forall = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RForall] (i, -1)))),
                                     Exists = fn _ => return ()
                                     }}>
-        {renderLogic 0 (Logic.Rec x)}</a></li></xml>) s.Cons}</ul>
+        {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons}</ul>
   </xml>
 fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody = match r
   {Goal = fn s => <xml>{renderSequent h s}</xml>, (* XXX do this actively *)
@@ -251,10 +251,14 @@ fun main () =
         <head>
           <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
         </head>
+        <body onload={set v (renderProof handler pf)}>
+          <dyn signal={signal v}/>
+        </body>
+      </xml>
+  end
+  (*
         <body onload={set v (renderProof handler pf); Js.infinitedrag seqid <xml><dyn signal={signal v}/></xml>}>
           <div class={viewport}>
             <div id={seqid} class={sequent}>&nbsp;</div>
           </div>
-        </body>
-      </xml>
-  end
+          *)
