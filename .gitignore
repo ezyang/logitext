@@ -8,3 +8,5 @@
 *.glob
 *.vo
 core
+dist
+meta
