@@ -1,7 +1,8 @@
-{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
+{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls, ScopedTypeVariables #-}
 
 module ClassicalFOLFFI where
 
+import Prelude hiding (catch)
 import ClassicalFOL
 import Data.ByteString as S
 import Data.ByteString.Unsafe
@@ -14,11 +15,14 @@ import GHC.Conc
 
 data UrwebContext
 
+catchToNull m =
+    m `catch` (\(e :: SomeException) -> return nullPtr)
+
 initFFI :: IO ()
 initFFI = evaluate theCoq >> return ()
 
 startFFI :: Ptr UrwebContext -> CString -> IO CString
-startFFI ctx cs = do
+startFFI ctx cs = catchToNull $ do
     s <- peekCAString cs
     r <- startString s
     lazyByteStringToUrWebCString ctx r
@@ -27,7 +31,7 @@ startFFI ctx cs = do
 -- outgoing string is on Urweb allocated memory, and
 -- is the unique outgoing one
 refineFFI :: Ptr UrwebContext -> CString -> IO CString
-refineFFI ctx s = do
+refineFFI ctx s = catchToNull $ do
     -- bs must not escape from this function
     bs <- packCString s
     r <- refineString (L.fromChunks [bs])
