@@ -2,11 +2,6 @@
 
 module ClassicalFOL where
 
-import qualified Coq as C
-import Coq (CoqTerm(..))
-import Ltac
-import CoqTop
-import JSONGeneric
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Maybe
@@ -34,6 +29,14 @@ import qualified Data.Aeson.Encode as E
 import Data.Attoparsec (Parser)
 import qualified Data.Attoparsec.Lazy as L -- XXX swap me out
 
+import qualified Coq as C
+import Coq (CoqTerm(..))
+import Ltac
+import CoqTop
+import JSONGeneric
+
+errorModule s = error ("ClassicalFOL: " ++ s)
+
 -- We rely on naming being deterministic, so that we can have 'pure'
 -- proof data structures.  This is really not practical for real
 -- proofs, where we really can't keep the all of the old proof states.
@@ -46,19 +49,6 @@ type FunV = String
 data S = S { hyps :: [L], cons :: [L] }
     deriving (Show, Eq, Data, Typeable)
 
-{-
-instance JSON S where
-    readJSON (JSObject (fromJSObject -> o)) =
-        case lookup "hyps" o of
-        Just hyps ->
-            case lookup "cons" o of
-            Just cons -> S <$> readJSONs hyps <*> readJSONs cons
-            _ -> Error "Could not read S"
-        _ -> Error "Could not read S"
-    readJSON _ = Error "Could not read S"
-    showJSON (S hyps cons) = makeObj [("hyps", showJSONs hyps), ("cons", showJSONs cons)]
--}
-
 -- Elements in the universe.  Distinguish between a constant and a
 -- bound variable (probably not strictly necessary, but convenient)
 data U = Fun FunV [U]
@@ -68,14 +58,13 @@ data U = Fun FunV [U]
 instance CoqTerm U where
     toCoq (Fun f xs) = C.App (C.Atom f) (map toCoq xs)
     toCoq (Var x) = C.Atom x
+    fromCoq = coqToU Set.empty
 
-    fromCoq = coqToU Set.empty where
-
--- XXX A bit specialized (not fromCoq because we need sets)
+-- (see CoqTerm XXX in Coq for clarification)
 coqToU s (C.Atom n) | n `Set.member` s = Var n
-               | otherwise = Fun n []
+                    | otherwise = Fun n []
 coqToU s (C.App (C.Atom n) us) = Fun n (map (coqToU s) us)
-coqToU _ _ = error "U.fromCoq"
+coqToU _ _ = errorModule "coqToU"
 
 data L = Pred PredV [U] -- could be (Pred "A" [])
        | Conj L L
@@ -103,21 +92,21 @@ instance CoqTerm L where
     fromCoq = f Set.empty where
         f s (C.Forall [] t) = f s t
         f s (C.Forall ((n, C.Atom "U"):bs) t) = Forall n (f (Set.insert n s) (C.Forall bs t))
-        f s (C.Fun _ _) = error "L.fromCoq Fun"
+        f s (C.Fun _ _) = errorModule "L.fromCoq Fun"
         f s (C.Typed t _) = f s t
         f s (C.Imp t t') = Imp (f s t) (f s t')
         f s (C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f (Set.insert n s) t)
-        f s (C.App (C.Atom "@ex") _) = error "L.fromCoq App ex"
+        f s (C.App (C.Atom "@ex") _) = errorModule "L.fromCoq App ex"
         f s (C.App (C.Atom "and") [t1, t2]) = Conj (f s t1) (f s t2)
-        f s (C.App (C.Atom "and") _) = error "L.fromCoq App and"
+        f s (C.App (C.Atom "and") _) = errorModule "L.fromCoq App and"
         f s (C.App (C.Atom "or") [t1, t2]) = Disj (f s t1) (f s t2)
-        f s (C.App (C.Atom "or") _) = error "L.fromCoq App or"
+        f s (C.App (C.Atom "or") _) = errorModule "L.fromCoq App or"
         f s (C.App (C.Atom "not") [t]) = Not (f s t)
-        f s (C.App (C.Atom "not") _) = error "L.fromCoq App not"
+        f s (C.App (C.Atom "not") _) = errorModule "L.fromCoq App not"
         f s (C.App (C.Atom p) ts) = Pred p (map (coqToU s) ts)
-        f s (C.App _ _) = error "L.fromCoq App"
-        f s (C.Sort _) = error "L.fromCoq Sort"
-        f s (C.Num _) = error "L.fromCoq Num"
+        f s (C.App _ _) = errorModule "L.fromCoq App"
+        f s (C.Sort _) = errorModule "L.fromCoq Sort"
+        f s (C.Num _) = errorModule "L.fromCoq Num"
         f s (C.Atom "True") = Top
         f s (C.Atom "False") = Bot
         f s (C.Atom n) = Pred n []
@@ -125,7 +114,7 @@ instance CoqTerm L where
 listifyDisj :: L -> [L]
 listifyDisj Bot = []
 listifyDisj (Disj t ts) = t : listifyDisj ts
-listifyDisj _ = error "listifyDisj"
+listifyDisj _ = errorModule "listifyDisj"
 
 disjList :: [L] -> L
 disjList [] = Bot
@@ -292,8 +281,8 @@ qToTac (RContract n _) = Tac "rContract" [con n]
 
 -- using error, not fail!  fail will have the wrong semantics
 -- when we're using Maybe
-maybeError s m = maybe (error s) return m
-eitherError = either (error . show) return
+maybeError s m = maybe (errorModule s) return m
+eitherError = either (errorModule . show) return
 
 -- NOTE Tactic failure may be from a built in (i.e. no clauses for
 -- match) or from an explicit fail, which can have a string resulting
@@ -319,14 +308,14 @@ parseResponse raw = do
     when (isJust (findElement (qn "errorresponse") fake)) (Left TacticFailure)
     -- yes, we're being partial here, but using ordering to
     -- ensure that the errors get sequenced correctly
-    resp <- maybeError "pendingToHole: no response found" (findChild (qn "normalresponse") (Element (qn "fake") [] raw Nothing))
+    resp <- maybeError "parseResponse: no response found" (findChild (qn "normalresponse") (Element (qn "fake") [] raw Nothing))
     (\s -> when (s == "no-more-subgoals") (Left NoMoreSubgoals)) `traverse_` findAttr (qn "status") resp
     hyps <- mapMaybe extractHyp
           . rights
           . map (C.parseTerm . strContent)
           . findChildren (qn "hyp")
-        <$> maybeError "pendingToHole: no hyps found" (findChild (qn "hyps") resp)
-    goal <- eitherError . C.parseTerm . strContent =<< maybeError "pendingToHole: no goal found" (findChild (qn "goal") resp)
+        <$> maybeError "parseResponse: no hyps found" (findChild (qn "hyps") resp)
+    goal <- eitherError . C.parseTerm . strContent =<< maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
     return (S (map fromCoq hyps) (listifyDisj (fromCoq goal)))
 
 refine :: P -> IO P
@@ -339,7 +328,8 @@ data UpdateFailure = UpdateFailure
 instance Exception UpdateFailure
 
 -- XXX leaky leak leak.  Also, it's a bottleneck.  (Try using a resource
--- pool or something)
+-- pool or something).  Also, we can make this more robust by rebooting
+-- Coq if we violate assumptions.
 {-# NOINLINE theCoq #-}
 theCoq = unsafePerformIO $ do
     (interact, _) <- coqtopRaw "ClassicalFOL"
@@ -359,7 +349,6 @@ theCoq = unsafePerformIO $ do
 
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
--- XXX not quite right
 refine' s@(S [] cs) p = withMVar theCoq $ \f -> do
     -- XXX demand no errors
     -- despite being horrible mutation, this plays an important
@@ -377,21 +366,21 @@ refine' s@(S [] cs) p = withMVar theCoq $ \f -> do
         readState = readIORef currentState
         checkState s = readState >>= \s' -> assert (Just s == s') (return ())
     r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
-    when (not r) $ error "refine: setting goal failed"
+    when (not r) $ errorModule "refine: setting goal failed"
     let fp p@(Goal s) = checkState s >> return p
         -- TODO also check if change in number of subgoals is correct
         fp p@(Pending s q) = do
             checkState s
             run (show (qToTac q)) >>= (`unless` throwIO UpdateFailure)
-            gs <- replicateM (qNum q) (fromJust <$> readState <* (run "admit" >>= (`unless` error "refine: could not admit")))
+            gs <- replicateM (qNum q) (fromJust <$> readState <* (run "admit" >>= (`unless` errorModule "refine: could not admit")))
             return (Proof s (fmap (Goal . (gs !!)) q))
         fp (Proof s _) = checkState s >> return undefined
-        fq q = run (show (qToTac q)) >>= (`unless` error "refine: inconsistent proof state")
+        fq q = run (show (qToTac q)) >>= (`unless` errorModule "refine: inconsistent proof state")
     preorder fp fq p `finally` f "Abort All"
 
 -- XXX partial (not a particularly stringent requirement; you can get
 -- around it with a few intros / tactic applications
-refine' _ _ = error "pendingToHole: meta-implication must be phrased as implication"
+refine' _ _ = errorModule "refine: meta-implication must be phrased as implication"
 
 -- XXX nicked from Aeson.Parser.Internal
 decodeWith :: Parser Value -> (Value -> Result a) -> Lazy.ByteString -> Maybe a
