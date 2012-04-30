@@ -4,8 +4,11 @@
 #include <stdio.h>
 // actually string option
 uw_Basis_string uw_Haskell_refine(uw_context ctx, uw_Basis_string i) {
-    uw_Basis_string r = refineFFI(ctx, i);
-    return r;
+    return refineFFI(ctx, i);
+}
+
+uw_Basis_string uw_Haskell_start(uw_context ctx, uw_Basis_string i) {
+    return startFFI(ctx, i);
 }
 
 uw_Basis_unit uw_Haskell_init(uw_context ctx) {

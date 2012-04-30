@@ -53,7 +53,7 @@ fun renderLogic p ((Logic.Rec r) : logic) : xbody = match r
       | _ => <xml>{[f]}(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>,
    Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic 3 a} ∧ {renderLogic 3 b}</xml>,
    Disj = fn (a, b) => renderParen (p>2) <xml>{renderLogic 2 a} ∨ {renderLogic 2 b}</xml>,
-   Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic 1 a} → {renderLogic 1 b}</xml>,
+   Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic 2 a} → {renderLogic 1 b}</xml>,
    Not = fn a => renderParen (p>4) <xml>¬{renderLogic 5 a}</xml>,
    Top = fn _ => <xml>⊤</xml>,
    Bot = fn _ => <xml>⊥</xml>,
@@ -229,29 +229,26 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody 
        </table></xml>
     }
 
-fun zap (x : proof) : transaction (option string)  = return (Haskell.refine (toJson x))
+fun zapRefine (x : proof) : transaction (option string)  = return (Haskell.refine (toJson x))
+fun zapStart x : transaction (option string) = return (Haskell.start x)
 
 fun main () =
   seqid <- fresh;
   v <- source <xml></xml>;
-  let val pf =
-    (Proof.Rec (make [#Goal]
-      {Hyps = Nil,
-       Cons = Cons
-        (Logic.Rec (make [#Disj]
-          (Logic.Rec (make [#Pred] ("A", Nil)),
-           Logic.Rec (make [#Pred] ("B", Nil)))),
-        Nil)}))
-      val rec handler = (fn x => z <- rpc (zap x); case z of
+  goal <- source "";
+  let fun handler x = z <- rpc (zapRefine x); case z of
         | None => return ()
         | Some r => set v (renderProof handler (fromJson r : proof))
-        )
+      fun startup () = x <- get goal; z <- rpc (zapStart x); case z of
+        | None => return ()
+        | Some r => set v (renderProof handler (fromJson r : proof))
   in
+  set v <xml><ctextbox source={goal}/><button value="Start" onclick={startup ()}/></xml>;
   return <xml>
         <head>
           <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
         </head>
-        <body onload={set v (renderProof handler pf)}>
+        <body>
           <dyn signal={signal v}/>
         </body>
       </xml>

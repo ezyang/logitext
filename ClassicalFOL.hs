@@ -255,11 +255,6 @@ parseResponse raw = do
     goal <- eitherError . C.parseTerm . strContent =<< maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
     return (S (map fromCoq hypList) (listifyDisj (fromCoq goal)))
 
-refine :: P -> IO P
-refine p@(Goal s)      = refine' s p
-refine p@(Pending s _) = refine' s p
-refine p@(Proof s _)   = refine' s p
-
 data UpdateFailure = UpdateFailure
     deriving (Typeable, Show)
 instance Exception UpdateFailure
@@ -283,6 +278,16 @@ theCoq = unsafePerformIO $ do
         , "Set Undo 0" -- not gonna use it
         ]
     newMVar f
+
+start :: String -> IO P
+start g = do
+    goal <- eitherError $ C.parseTerm g
+    return (Goal (S [] [fromCoq goal]))
+
+refine :: P -> IO P
+refine p@(Goal s)      = refine' s p
+refine p@(Pending s _) = refine' s p
+refine p@(Proof s _)   = refine' s p
 
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
@@ -346,10 +351,14 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
 -- around it with a few intros / tactic applications
 refine' _ _ = errorModule "refine: meta-implication must be phrased as implication"
 
+startString :: String -> IO Lazy.ByteString
+startString s = E.encode . toJSON <$> start s
+
 refineString :: Lazy.ByteString -> IO (Maybe Lazy.ByteString)
 refineString s =
     case L.parse json' s of
         L.Done _ v -> case fromJSON v of
+            -- XXX refine errors should be turned into nothing
             Success a -> Just . E.encode . toJSON <$> refine a
             _ -> return Nothing
         _ -> return Nothing
