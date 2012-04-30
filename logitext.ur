@@ -134,27 +134,27 @@ type proof = Proof.r
 fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
       <xml><li><span onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#Exact] i))),
-                                    Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LConj] (i, -1)))),
-                                    Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LDisj] (i, -1, -1)))),
-                                    Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LImp] (i, -1, -1)))),
-                                    Not = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LNot] (i, -1)))),
+                                    Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LConj] (i, 0)))),
+                                    Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LDisj] (i, 0, 1)))),
+                                    Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LImp] (i, 0, 1)))),
+                                    Not = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LNot] (i, 0)))),
                                     Top = fn _ => return (),
                                     Bot = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LBot] i))),
                                     Forall = fn _ => return (),
-                                    Exists = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LExists] (i, -1))))
+                                    Exists = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LExists] (i, 0))))
                                     }}>
         {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps}
     </ul>
       ⊢
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
       <xml><li><span onclick={match x {Pred = fn _ => return (),
-                                    Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RConj] (i, -1, -1)))),
-                                    Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RDisj] (i, -1)))),
-                                    Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RImp] (i, -1)))),
-                                    Not = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RNot] (i, -1)))),
+                                    Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RConj] (i, 0, 1)))),
+                                    Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RDisj] (i, 0)))),
+                                    Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RImp] (i, 0)))),
+                                    Not = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RNot] (i, 0)))),
                                     Top = fn _ => return (), (*h (Proof.Rec (make [#Pending] (s, make [#RTop] i))),*)
                                     Bot = fn _ => return (),
-                                    Forall = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RForall] (i, -1)))),
+                                    Forall = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RForall] (i, 0)))),
                                     Exists = fn _ => return ()
                                     }}>
         {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons}</ul>
