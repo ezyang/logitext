@@ -2,3 +2,4 @@
 - more user affordance (highlight clickable stuff)
 - interface for quantifiers
 - figure out better layout css (looks bad in Chrome)
+- user error handling
