@@ -9,9 +9,13 @@ import qualified Data.ByteString.Lazy as L
 import Foreign.Marshal.Utils
 import Foreign
 import Foreign.C.String
+import Control.Exception
 import GHC.Conc
 
 data UrwebContext
+
+initFFI :: IO ()
+initFFI = evaluate theCoq >> return ()
 
 startFFI :: Ptr UrwebContext -> CString -> IO CString
 startFFI ctx cs = do
@@ -49,6 +53,7 @@ lazyByteStringToUrWebCString ctx bs = do
 
 foreign export ccall refineFFI :: Ptr UrwebContext -> CString -> IO CString
 foreign export ccall startFFI :: Ptr UrwebContext -> CString -> IO CString
+foreign export ccall initFFI :: IO ()
 
 foreign import ccall "urweb.h uw_malloc"
     uw_malloc :: Ptr UrwebContext -> Int -> IO (Ptr a)

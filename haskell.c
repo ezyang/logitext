@@ -16,4 +16,5 @@ uw_Basis_unit uw_Haskell_init(uw_context ctx) {
     // XXX big ugly hack.  If you remove it the event manager crashes
     // for some odd reason
     ensureIOManagerIsRunning();
+    initFFI();
 }

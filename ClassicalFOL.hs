@@ -279,6 +279,7 @@ theCoq = unsafePerformIO $ do
         ]
     newMVar f
 
+-- XXX This is a stupid way of doing it, since parseTerm is so partial.
 start :: String -> IO P
 start g = do
     goal <- eitherError $ C.parseTerm g
