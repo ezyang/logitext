@@ -2,32 +2,24 @@
 
 module ClassicalFOL where
 
-import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Maybe
 import Data.Either
-import Data.List
 import Data.Foldable (traverse_)
 import Data.IORef
 import Data.Typeable
-import Data.Word
-import Data.Bits
 import Data.Data
 import qualified Data.ByteString.Lazy as Lazy
 import Control.Applicative
 import Control.Exception
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Concurrent.MVar
 import System.IO.Unsafe
-import Debug.Trace
 import Text.XML.Light
-import Data.Aeson.Types (Result(..), Value(..))
+import Data.Aeson.Types (Result(..))
 import Data.Aeson (json')
 import qualified Data.Aeson.Encode as E
-
-import Data.Attoparsec (Parser)
-import qualified Data.Attoparsec.Lazy as L -- XXX swap me out
+import qualified Data.Attoparsec.Lazy as L
 
 import qualified Coq as C
 import Coq (CoqTerm(..))
@@ -86,30 +78,31 @@ instance CoqTerm L where
     toCoq (Not a) = C.App (C.Atom "not") [toCoq a]
     toCoq Top = C.Atom "True"
     toCoq Bot = C.Atom "False"
-    toCoq (Forall x a) = C.Forall [("x", C.Atom "U")] (toCoq a)
+    toCoq (Forall x a) = C.Forall [(x, C.Atom "U")] (toCoq a)
     toCoq (Exists x a) = C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(x, C.Atom "U")] (toCoq a)]
 
     fromCoq = f Set.empty where
         f s (C.Forall [] t) = f s t
         f s (C.Forall ((n, C.Atom "U"):bs) t) = Forall n (f (Set.insert n s) (C.Forall bs t))
-        f s (C.Fun _ _) = errorModule "L.fromCoq Fun"
+        f _ (C.Forall _ _) = errorModule "L.fromCoq Forall"
+        f _ (C.Fun _ _) = errorModule "L.fromCoq Fun"
         f s (C.Typed t _) = f s t
         f s (C.Imp t t') = Imp (f s t) (f s t')
         f s (C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f (Set.insert n s) t)
-        f s (C.App (C.Atom "@ex") _) = errorModule "L.fromCoq App ex"
+        f _ (C.App (C.Atom "@ex") _) = errorModule "L.fromCoq App ex"
         f s (C.App (C.Atom "and") [t1, t2]) = Conj (f s t1) (f s t2)
-        f s (C.App (C.Atom "and") _) = errorModule "L.fromCoq App and"
+        f _ (C.App (C.Atom "and") _) = errorModule "L.fromCoq App and"
         f s (C.App (C.Atom "or") [t1, t2]) = Disj (f s t1) (f s t2)
-        f s (C.App (C.Atom "or") _) = errorModule "L.fromCoq App or"
+        f _ (C.App (C.Atom "or") _) = errorModule "L.fromCoq App or"
         f s (C.App (C.Atom "not") [t]) = Not (f s t)
-        f s (C.App (C.Atom "not") _) = errorModule "L.fromCoq App not"
+        f _ (C.App (C.Atom "not") _) = errorModule "L.fromCoq App not"
         f s (C.App (C.Atom p) ts) = Pred p (map (coqToU s) ts)
-        f s (C.App _ _) = errorModule "L.fromCoq App"
-        f s (C.Sort _) = errorModule "L.fromCoq Sort"
-        f s (C.Num _) = errorModule "L.fromCoq Num"
-        f s (C.Atom "True") = Top
-        f s (C.Atom "False") = Bot
-        f s (C.Atom n) = Pred n []
+        f _ (C.App _ _) = errorModule "L.fromCoq App"
+        f _ (C.Sort _) = errorModule "L.fromCoq Sort"
+        f _ (C.Num _) = errorModule "L.fromCoq Num"
+        f _ (C.Atom "True") = Top
+        f _ (C.Atom "False") = Bot
+        f _ (C.Atom n) = Pred n []
 
 listifyDisj :: L -> [L]
 listifyDisj Bot = []
@@ -129,7 +122,10 @@ disjList (x:xs) = Disj x (disjList xs)
 --
 -- You might suggest some inference rule Q, in which case
 -- you now have an Pending _ (Q _).  It's unknown if it will work, nor do
--- we know what the subgoals will be.
+-- we know what the subgoals will be.  Note that we abuse the polymorphism
+-- of tactic to help mapping from Q Int -> Q P; all of the entries
+-- of a pending tactic enumerate up from 0; so you can do a fmap in
+-- order to instantiate P after you pass it to Coq.
 --
 -- Finally, after passing it to Coq, we discover if it's successful
 -- and replace it with a Proof term.
@@ -158,7 +154,8 @@ data Q a = Exact Int
          | RContract Int a
     deriving (Functor, Show, Data, Typeable)
 
--- preorder traversal (does a full rebuild)
+-- preorder traversal for side effects (does a full rebuild)
+preorder :: Applicative f => (P -> f P) -> (Q P -> f ()) -> P -> f P
 preorder fp fq a = tp a
   where
     -- XXX eep, only needs to be partial! Could use some GADTs here...
@@ -187,42 +184,20 @@ preorder fp fq a = tp a
     tq q@(RContract n x) = RContract n <$ fq q <*> tp x
 
 proofComplete a = isJust (preorder fp fq a)
-  where fp p@(Goal _) = mzero
-        fp p@(Pending _ _) = mzero
-        fp p@(Proof _ _) = return undefined
-        fq _ = return undefined
+  where fp (Goal _) = Nothing
+        fp (Pending _ _) = Nothing
+        fp p@(Proof _ _) = Just p
+        fq _ = Just ()
 
 hyp n = "Hyp" ++ show n
 con n = "Con" ++ show n
-
--- XXX a travesty against types all around the world... because I was too
--- lazy to actually write the case
-qNum Exact{} = 0
-qNum Cut{} = 2
-qNum LConj{} = 1
-qNum LDisj{} = 2
-qNum LImp{} = 2
-qNum LBot{} = 0
-qNum LNot{} = 1
-qNum LForall{} = 1
-qNum LExists{} = 1
-qNum LContract{} = 1
-qNum LWeaken{} = 1
-qNum RConj{} = 2
-qNum RDisj{} = 1
-qNum RImp{} = 1
-qNum RNot{} = 1
-qNum RForall{} = 1
-qNum RExists{} = 1
-qNum RWeaken{} = 1
-qNum RContract{} = 1
 
 qToTac (Exact n) = Tac "myExact" [hyp n]
 qToTac (Cut l _ _) = Tac "myCut" [C.render (toCoq l)]
 qToTac (LConj n _) = Tac "lConj" [hyp n]
 qToTac (LDisj n _ _) = Tac "lDisj" [hyp n]
 qToTac (LImp n _ _) = Tac "lImp" [hyp n]
-qToTac (LBot n) = Tac "lBot" []
+qToTac (LBot _) = Tac "lBot" [] -- XXX huh, kind of a weird tactic
 qToTac (LNot n _) = Tac "lNot" [hyp n]
 qToTac (LForall n v _) = Tac "lForall" [hyp n, C.render (toCoq v)]
 qToTac (LExists n _) = Tac "lExists" [hyp n]
@@ -272,13 +247,13 @@ parseResponse raw = do
     -- ensure that the errors get sequenced correctly
     resp <- maybeError "parseResponse: no response found" (findChild (qn "normalresponse") (Element (qn "fake") [] raw Nothing))
     (\s -> when (s == "no-more-subgoals") (Left NoMoreSubgoals)) `traverse_` findAttr (qn "status") resp
-    hyps <- mapMaybe extractHyp
-          . rights
-          . map (C.parseTerm . strContent)
-          . findChildren (qn "hyp")
+    hypList <- mapMaybe extractHyp
+             . rights
+             . map (C.parseTerm . strContent)
+             . findChildren (qn "hyp")
         <$> maybeError "parseResponse: no hyps found" (findChild (qn "hyps") resp)
     goal <- eitherError . C.parseTerm . strContent =<< maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
-    return (S (map fromCoq hyps) (listifyDisj (fromCoq goal)))
+    return (S (map fromCoq hypList) (listifyDisj (fromCoq goal)))
 
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
@@ -294,8 +269,8 @@ instance Exception UpdateFailure
 -- Coq if invariants are violated.
 {-# NOINLINE theCoq #-}
 theCoq = unsafePerformIO $ do
-    (interact, _) <- coqtopRaw "ClassicalFOL"
-    mapM_ interact
+    (f, _) <- coqtopRaw "ClassicalFOL"
+    mapM_ f
         [ "Section scratch"
         , "Parameter U : Set"
         -- XXX factor these constants out
@@ -307,11 +282,11 @@ theCoq = unsafePerformIO $ do
         , "Set Default Timeout 1" -- should be more than enough! no proof search see?
         , "Set Undo 0" -- not gonna use it
         ]
-    newMVar interact
+    newMVar f
 
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
-refine' s@(S [] cs) p = withMVar theCoq $ \f -> do
+refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
     -- XXX demand no errors
     -- despite being horrible mutation, this plays an important
     -- synchronizing role for us; it lets us make sure that "what we
@@ -328,17 +303,44 @@ refine' s@(S [] cs) p = withMVar theCoq $ \f -> do
         readState = readIORef currentState
         checkState s = readState >>= \s' -> assert (Just s == s') (return ())
     r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
-    when (not r) $ errorModule "refine: setting goal failed"
+    when (not r) $ errorModule "refine: setting goal failed" -- we're kind of screwed
     let fp p@(Goal s) = checkState s >> return p
         -- TODO also check if change in number of subgoals is correct
-        fp p@(Pending s q) = do
+        fp (Pending s q) = do
             checkState s
             run (show (qToTac q)) >>= (`unless` throwIO UpdateFailure)
-            gs <- replicateM (qNum q) (fromJust <$> readState <* (run "admit" >>= (`unless` errorModule "refine: could not admit")))
-            return (Proof s (fmap (Goal . (gs !!)) q))
+            -- XXX This is a /terrifying/ abuse of functoriality,
+            let qNum Exact{} = 0
+                qNum Cut{} = 2
+                qNum LConj{} = 1
+                qNum LDisj{} = 2
+                qNum LImp{} = 2
+                qNum LBot{} = 0
+                qNum LNot{} = 1
+                qNum LForall{} = 1
+                qNum LExists{} = 1
+                qNum LContract{} = 1
+                qNum LWeaken{} = 1
+                qNum RConj{} = 2
+                qNum RDisj{} = 1
+                qNum RImp{} = 1
+                qNum RNot{} = 1
+                qNum RForall{} = 1
+                qNum RExists{} = 1
+                qNum RWeaken{} = 1
+                qNum RContract{} = 1
+            gs <- replicateM (qNum q) $ do
+                goal <- maybeError "refine: currentState empty" =<< readState
+                run "admit" >>= (`unless` errorModule "refine: could not admit")
+                return goal
+            let index [] _ = errorModule "refine/index: out of bound index"
+                index (x:xs) n | n < 0 = errorModule "refine/index: negative index"
+                               | n == 0 = x
+                               | otherwise = index xs (n-1)
+            return (Proof s (fmap (Goal . (gs `index`)) q))
         fp (Proof s _) = checkState s >> return undefined
         fq q = run (show (qToTac q)) >>= (`unless` errorModule "refine: inconsistent proof state")
-    preorder fp fq p `finally` f "Abort All"
+    preorder fp fq pTop `finally` f "Abort All"
 
 -- XXX partial (not a particularly stringent requirement; you can get
 -- around it with a few intros / tactic applications
