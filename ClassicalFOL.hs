@@ -186,44 +186,6 @@ preorder fp fq a = tp a
     tq q@(RWeaken n x)  = RWeaken n <$ fq q <*> tp x
     tq q@(RContract n x) = RContract n <$ fq q <*> tp x
 
--- words are easier to pass around, and 32 proof steps ought to be enough
--- for anybody...
-intToBits :: Word -> [Int]
-intToBits 0 = [0]
-intToBits 1 = [1]
-intToBits n | n .&. 1 == 0 = 0 : intToBits (shiftR n 1)
-            | otherwise    = 1 : intToBits (shiftR n 1)
-
-update p is q = go p is where
-    go (Goal s) [] = return (Pending s q)
-    go _ [] = mzero
-    go (Goal _) (_:_) = mzero
-    go (Pending _ _) (_:_) = mzero
-    go (Proof s q') (i:is) =
-        let og (Cut l x y) 0 = Cut l <$> go x is <*> pure y
-            og (Cut l x y) 1 = Cut l <$> pure x <*> go y is
-            og (LConj n x) 0 = LConj n <$> go x is
-            og (LDisj n x y) 0 = LDisj n <$> go x is <*> pure y
-            og (LDisj n x y) 1 = LDisj n <$> pure x <*> go y is
-            og (LImp n x y) 0 = LImp n <$> go x is <*> pure y
-            og (LImp n x y) 1 = LImp n <$> pure x <*> go y is
-            og (LNot n x) 0 = LNot n <$> go x is
-            og (LForall n v x) 0 = LForall n v <$> go x is
-            og (LExists n x) 0 = LExists n <$> go x is
-            og (LContract n x) 0 = LContract n <$> go x is
-            og (LWeaken n x) 0 = LWeaken n <$> go x is
-            og (RConj n x y) 0 = RConj n <$> go x is <*> pure y
-            og (RConj n x y) 1 = RConj n <$> pure x <*> go y is
-            og (RDisj n x) 0 = RDisj n <$> go x is
-            og (RImp n x) 0 = RImp n <$> go x is
-            og (RNot n x) 0 = RNot n <$> go x is
-            og (RForall n x) 0 = RForall n <$> go x is
-            og (RExists n v x) 0 = RExists n v <$> go x is
-            og (RWeaken n x) 0 = RWeaken n <$> go x is
-            og (RContract n x) 0 = RContract n <$> go x is
-            og _ _ = mzero
-        in Proof s <$> og q' i
-
 proofComplete a = isJust (preorder fp fq a)
   where fp p@(Goal _) = mzero
         fp p@(Pending _ _) = mzero
@@ -329,7 +291,7 @@ instance Exception UpdateFailure
 
 -- XXX leaky leak leak.  Also, it's a bottleneck.  (Try using a resource
 -- pool or something).  Also, we can make this more robust by rebooting
--- Coq if we violate assumptions.
+-- Coq if invariants are violated.
 {-# NOINLINE theCoq #-}
 theCoq = unsafePerformIO $ do
     (interact, _) <- coqtopRaw "ClassicalFOL"
@@ -382,29 +344,10 @@ refine' s@(S [] cs) p = withMVar theCoq $ \f -> do
 -- around it with a few intros / tactic applications
 refine' _ _ = errorModule "refine: meta-implication must be phrased as implication"
 
--- XXX nicked from Aeson.Parser.Internal
-decodeWith :: Parser Value -> (Value -> Result a) -> Lazy.ByteString -> Maybe a
-decodeWith p to s =
-    case L.parse p s of
-      L.Done _ v -> case to v of
-                      Success a -> Just a
-                      _         -> Nothing
-      _          -> Nothing
-
 refineString :: Lazy.ByteString -> IO (Maybe Lazy.ByteString)
 refineString s =
-    case decodeWith json' fromJSON s of
-    Just a -> Just . E.encode . toJSON <$> refine a
-    _ -> return Nothing
-
-main = do
-    let s = S [] [Pred "A" [], Not (Pred "A" [])]
-    -- XXX actually kinda slow...
-    {-
-    print =<< refine (Goal s)
-    print =<< refine (Pending s (RNot 1 0))
-    print =<< refine (Proof s (RNot 1 (Goal (S [Pred "A" []] [Pred "A" []]))))
-    print =<< refine (Proof s (RNot 1 (Pending (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
-    -}
-    print . E.encode . toJSON =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
-    (print :: Maybe P -> IO ()) . decodeWith json' fromJSON . E.encode . toJSON =<< refine (Proof s (RNot 1 (Proof (S [Pred "A" []] [Pred "A" []]) (Exact 0))))
+    case L.parse json' s of
+        L.Done _ v -> case fromJSON v of
+            Success a -> Just . E.encode . toJSON <$> refine a
+            _ -> return Nothing
+        _ -> return Nothing
