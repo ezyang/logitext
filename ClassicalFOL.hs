@@ -293,6 +293,7 @@ refine p@(Proof s _)   = refine' s p
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
 refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
+    -- print pTop
     -- XXX demand no errors
     -- despite being horrible mutation, this plays an important
     -- synchronizing role for us; it lets us make sure that "what we
@@ -310,7 +311,7 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
         checkState s = readState >>= \s' -> assert (Just s == s') (return ())
     r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
     when (not r) $ errorModule "refine: setting goal failed" -- we're kind of screwed
-    let fp p@(Goal s) = checkState s >> return p
+    let fp p@(Goal s) = checkState s >> (run "admit" >>= (`unless` errorModule "refine: could not admit")) >> return p
         -- TODO also check if change in number of subgoals is correct
         fp (Pending s q) = do
             checkState s
@@ -337,14 +338,14 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
                 qNum RContract{} = 1
             gs <- replicateM (qNum q) $ do
                 goal <- maybeError "refine: currentState empty" =<< readState
-                run "admit" >>= (`unless` errorModule "refine: could not admit")
+                run "admit" >>= (`unless` errorModule "refine: could not admit after tactic")
                 return goal
             let index [] _ = errorModule "refine/index: out of bound index"
                 index (x:xs) n | n < 0 = errorModule "refine/index: negative index"
                                | n == 0 = x
                                | otherwise = index xs (n-1)
             return (Proof s (fmap (Goal . (gs `index`)) q))
-        fp (Proof s _) = checkState s >> return undefined
+        fp p@(Proof s _) = checkState s >> return p
         fq q = run (show (qToTac q)) >>= (`unless` errorModule "refine: inconsistent proof state")
     preorder fp fq pTop `finally` f "Abort All"
 

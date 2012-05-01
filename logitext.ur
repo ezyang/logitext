@@ -1,11 +1,13 @@
-style sequent
-style preview
+style proof
+style inference
+style tagBox
+style tag
+style upper
+style sibling
+style junct
+
 style viewport
 style commaList
-style inference
-style tag
-style tagRow
-style step
 
 open Json
 
@@ -133,7 +135,7 @@ end)
 type proof = Proof.r
 fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#Exact] i))),
+      <xml><li><span class={junct} onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#Exact] i))),
                                     Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LConj] (i, 0)))),
                                     Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LDisj] (i, 0, 1)))),
                                     Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LImp] (i, 0, 1)))),
@@ -147,7 +149,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
     </ul>
       ⊢
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span onclick={match x {Pred = fn _ => return (),
+      <xml><li><span class={junct} onclick={match x {Pred = fn _ => return (),
                                     Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RConj] (i, 0, 1)))),
                                     Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RDisj] (i, 0)))),
                                     Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RImp] (i, 0)))),
@@ -160,102 +162,132 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
         {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons}</ul>
   </xml>
 fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody = match r
-  {Goal = fn s => <xml>{renderSequent h s}</xml>, (* XXX do this actively *)
+  {Goal = fn s => <xml><table><tr><td>{renderSequent h s}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>, (* XXX do this actively *)
    Pending = fn (s, t) => <xml></xml>,
    Proof = fn (s, t) =>
-       <xml><table>
+       <xml>
          (* XXX could use some metaprogramming yo *)
-          <tr><td rowspan=2>{match t {
+          <div>{match t {
             Exact = fn _ => <xml>&nbsp;</xml>,
-            Cut = fn (l, a, b) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, x, b))))) a}</td>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, a, x))))) b}</td>
-              </tr></table></xml>,
-            LConj = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LConj] (n, x))))) a}</td>
-              </tr></table></xml>,
-            LDisj = fn (n, a, b) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, x, b))))) a}</td>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, a, x))))) b}</td>
-              </tr></table></xml>,
-            LImp = fn (n, a, b) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, x, b))))) a}</td>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, a, x))))) b}</td>
-              </tr></table></xml>,
-            LBot = fn n => <xml>&nbsp;</xml>,
-            LNot = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LNot] (n, x))))) a}</td>
-              </tr></table></xml>,
-            LForall = fn (n, u, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LForall] (n, u, x))))) a}</td>
-              </tr></table></xml>,
-            LExists = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LExists] (n, x))))) a}</td>
-              </tr></table></xml>,
-            LContract = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LContract] (n, x))))) a}</td>
-              </tr></table></xml>,
-            LWeaken = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LWeaken] (n, x))))) a}</td>
-              </tr></table></xml>,
-            RConj = fn (n, a, b) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, x, b))))) a}</td>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, a, x))))) b}</td>
-              </tr></table></xml>,
-            RDisj = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RDisj] (n, x))))) a}</td>
-              </tr></table></xml>,
-            RImp = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RImp] (n, x))))) a}</td>
-              </tr></table></xml>,
-            RNot = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RNot] (n, x))))) a}</td>
-              </tr></table></xml>,
-            RForall = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RForall] (n, x))))) a}</td>
-              </tr></table></xml>,
-            RExists = fn (n, u, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LForall] (n, u, x))))) a}</td>
-              </tr></table></xml>,
-            RContract = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RContract] (n, x))))) a}</td>
-              </tr></table></xml>,
-            RWeaken = fn (n, a) => <xml><table><tr>
-                <td>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RWeaken] (n, x))))) a}</td>
-              </tr></table></xml>
-          }}</td><td>&nbsp;</td></tr>
-          <tr class={tagRow}><td rowspan=2 class={tag}>{[tacticRenderName t]}</td></tr>
-          <tr class={step}><td>{renderSequent h s}</td></tr>
+            Cut = fn (l, a, b) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, x, b))))) a}</div>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, a, x))))) b}</div>
+              </xml>,
+            LConj = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LConj] (n, x))))) a}</div>
+              </xml>,
+            LDisj = fn (n, a, b) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, x, b))))) a}</div>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, a, x))))) b}</div>
+              </xml>,
+            LImp = fn (n, a, b) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, x, b))))) a}</div>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, a, x))))) b}</div>
+              </xml>,
+            LBot = fn n => <xml></xml>,
+            LNot = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LNot] (n, x))))) a}</div>
+              </xml>,
+            LForall = fn (n, u, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LForall] (n, u, x))))) a}</div>
+              </xml>,
+            LExists = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LExists] (n, x))))) a}</div>
+              </xml>,
+            LContract = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LContract] (n, x))))) a}</div>
+              </xml>,
+            LWeaken = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LWeaken] (n, x))))) a}</div>
+              </xml>,
+            RConj = fn (n, a, b) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, x, b))))) a}</div>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, a, x))))) b}</div>
+              </xml>,
+            RDisj = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RDisj] (n, x))))) a}</div>
+              </xml>,
+            RImp = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RImp] (n, x))))) a}</div>
+              </xml>,
+            RNot = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RNot] (n, x))))) a}</div>
+              </xml>,
+            RForall = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RForall] (n, x))))) a}</div>
+              </xml>,
+            RExists = fn (n, u, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LForall] (n, u, x))))) a}</div>
+              </xml>,
+            RContract = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RContract] (n, x))))) a}</div>
+              </xml>,
+            RWeaken = fn (n, a) => <xml>
+                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RWeaken] (n, x))))) a}</div>
+              </xml>
+          }}</div>
+       <table>
+          <tr><td class={inference}>{renderSequent h s}</td><td class={tagBox}><div class={tag}>{[tacticRenderName t]}</div></td></tr>
        </table></xml>
     }
 
 fun zapRefine (x : proof) : transaction (option string)  = return (Haskell.refine (toJson x))
 fun zapStart x : transaction (option string) = return (Haskell.start x)
 
-fun main () =
-  seqid <- fresh;
+val head = <xml><link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" /></xml>
+
+fun proving goal =
   v <- source <xml></xml>;
-  goal <- source "";
   let fun handler x = z <- rpc (zapRefine x); case z of
         | None => return ()
         | Some r => set v (renderProof handler (fromJson r : proof))
-      fun startup () = x <- get goal; z <- rpc (zapStart x); case z of
-        | None => return ()
-        | Some r => set v (renderProof handler (fromJson r : proof))
   in
-  set v <xml><ctextbox source={goal}/><button value="Start" onclick={startup ()}/></xml>;
   return <xml>
         <head>
-          <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
+          <title>Proving {[goal]}</title>
+          {head}
         </head>
-        <body>
-          <dyn signal={signal v}/>
+        <body onload={
+          x <- rpc (zapStart goal);
+          case x of
+              | None => return ()
+              | Some r => set v (renderProof handler (fromJson r : proof))
+        }>
+          <p><a link={main ()}>Try something else...</a></p>
+          <div class={proof}>
+            <dyn signal={signal v}/>
+          </div>
         </body>
       </xml>
   end
   (*
+  seqid <- fresh;
         <body onload={set v (renderProof handler pf); Js.infinitedrag seqid <xml><dyn signal={signal v}/></xml>}>
           <div class={viewport}>
-            <div id={seqid} class={sequent}>&nbsp;</div>
+            <div id={seqid} class={proof}>&nbsp;</div>
           </div>
           *)
+
+and provingTrampoline r =
+  redirect (url (proving r.Goal))
+
+and main () =
+  let fun tryProof s = <xml><li><a link={proving s}>{[s]}</a></li></xml>
+  in
+  return <xml>
+      <head>
+        <title>Logitext</title>
+      </head>
+      <body>
+        <p>Type in something to prove (XXX syntax):</p>
+        <form>
+          <textbox{#Goal}/><submit action={provingTrampoline} value="Prove"/>
+        </form>
+        <p>Here are some examples:</p>
+        <ul>
+          {tryProof "((P -> Q) -> P) -> P"}
+          {tryProof "or A (not A)"}
+        </ul>
+      </body>
+    </xml>
+    end

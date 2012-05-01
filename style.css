@@ -1,13 +1,14 @@
 .zeropoint { z-index: 10; }
 .viewport { height:500px; width:800px; overflow:hidden; border:1px #CCC solid; }
-.sequent {  }
-.sequent table { margin:0; border-collapse:collapse; margin: 0 auto; }
-.sequent td { padding:0; border:0; margin:0; text-align:center; }
-.preview { color: #AAA; }
-.preview input { background: #FFF; border:0; color: #AAA; }
-.tagRow { height: 1.2em; }
-.tag { font-size: 0.8em; color: #666; vertical-align: middle; }
-.step td { border-top: 1px solid #000; }
+
+.proof { display: inline-block; }
+.proof table { width:100%; border-collapse:collapse; margin: auto; }
+.proof td { padding:0; border:0; margin:0; text-align:center; }
+.proof .sibling { display: inline-block; vertical-align:bottom; }
+.proof .tagBox { font-size: 0.8em; color: #666; vertical-align: top; width: 2.1em; padding-left:0.3em; }
+.proof .tagBox .tag { position:relative; top:-0.7em;}
+.proof .inference { border-top: 1px solid #000; }
+.proof .junct:hover { background: #DDF; cursor:pointer; }
 
 /* hat tip http://petewilliams.info/blog/2010/04/display-html-olul-list-as-comma-separated-sentence/ */
 .commaList { display: inline; list-style: none; margin: 0; padding: 0; }

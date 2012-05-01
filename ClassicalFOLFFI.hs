@@ -16,7 +16,7 @@ import GHC.Conc
 data UrwebContext
 
 catchToNull m =
-    m `catch` (\(e :: SomeException) -> return nullPtr)
+    m `catch` (\(e :: SomeException) -> print e >> return nullPtr)
 
 initFFI :: IO ()
 initFFI = evaluate theCoq >> return ()
