@@ -20,12 +20,10 @@ import Data.List.Split
 -- You'll need ezyang's private copy of Coq https://github.com/ezyang/coq
 
 coqtopProcess theory err = CreateProcess
-    -- XXX Filepaths should be more generic...
-    { cmdspec = RawCommand "/home/ezyang/Dev/coq-git/bin/coqtop.opt"
-                            [ "-coqlib"
-                            , "/home/ezyang/Dev/coq-git"
+    { cmdspec = RawCommand "coqtop"
+                            [ "-boot"
                             , "-l"
-                            , "/home/ezyang/Dev/logitext/" ++ theory ++ ".v"
+                            , theory ++ ".v"
                             , "-pgip"]
     , cwd = Nothing
     , env = Nothing
@@ -78,12 +76,3 @@ coqtopRaw theory = do
     return (interact, end)
 
 coqtop theory inner = bracket (coqtopRaw theory) snd (inner . fst)
-
-{-
-main =
-    coqtop "ClassicalFOL" $ \f -> do
-        let run s = f s >>= print >> putStrLn ""
-        run "Goal True."
-        run "trivial."
-        run "Qed."
--}

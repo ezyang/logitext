@@ -7,3 +7,7 @@
 - Idea for dynamic updating: start off with the extra thing but at
   display:none; (width/height zero), then have it be empty but expand
   out (to allocate space) and then add in the text
+- Studies about latency/timeouts: what should we do while the user
+  is waiting for a response?  What about /purposeful/ latency
+  for CPU reasons (think of download websites) or for pedagogical
+  purposes (don't spam me with guesses)

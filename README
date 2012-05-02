@@ -1,0 +1,99 @@
+Install
+-------
+
+1) Get a copy of Coq with PGIP support
+
+    git clone https://github.com/ezyang/coq
+    # build Coq using the standard methods
+
+You need to tell Logitext about where this Coq lives.
+The easiest way is to create a file named config in the
+Logitext directory that sets the PATH to the bin directory of
+the built Coq, e.g.
+
+    echo 'export PATH=$HOME/coq/bin:$PATH' > config
+
+(Note: We use the -boot option to run Coq; this makes installation
+easier but requires you to keep the build directory around.  If
+you really want to 'make install' your copy of Coq, you'll need
+to edit CoqTop.hs to remove the -boot flag, or make a coqtop wrapper
+executable that strips the -boot flag.)
+
+Test this setup by running the following commands:
+
+    . config
+    coqtop -v    # should have build date equal to current date
+    coqtop -boot # should put you into repl
+
+2) Get the Ur metaprogramming library
+
+    hg clone https://bitbucket.org/ezyang/meta
+
+Place this as a subdirectory of the logitext folder, and it will
+automatically get picked up. (XXX My two patches should be hitting
+mainline soon.)
+
+3) Get the Ur/Web compiler
+
+    hg clone https://bitbucket.org/ezyang/urweb
+    # build Ur/Web using the standard method
+
+You have a few options for setting up Ur/Web.  If you can install
+it globally on the system, you need no further changes.
+
+Alternatively, you can configure an alternate --prefix for Ur/Web, and
+then add the Ur/Web in that location to your PATH.  (The build.sh script
+references 'config', so you can place it there.) You'll also need to add
+the include directory to C_INCLUDE_PATH, as we use the C FFI, which
+needs a fully qualified header name (GHC will need this too).
+
+Another convenient option is to just set URWEB_FLAGS="-boot",
+and don't bother installing into an alternate prefix.  You'll
+still need to modify PATH and C_INCLUDE_PATH, but you can directly
+point them at the build directory.
+
+(XXX I don't know if Adam is going to take this patch.)
+
+4) Prepare GHC and Haskell
+
+Any widely available distribution should do; the author personally
+is using 7.0.4 with the Haskell Platform.  Run
+
+    cabal configure
+
+in order to find out what libraries you need, and install them.
+We don't use cabal to build the Haskell products though, because
+we need to use GHC to link Ur/Web and Haskell code together.
+
+5) Build it!
+
+You'll need a Linux system with inotify to use the normal scripts. Run
+
+    ./build.sh
+
+which sets up a continuous rebuilding server, and automatically starts
+up with the normal parameters.  Tweak the script for your own needs
+as necessary.  You can also run
+
+    ./tc.sh
+
+to get continuous typechecking on the Ur/Web files.
+
+Troubleshooting
+---------------
+
+    Database connection initialized.
+    Starting up coqtop...
+    Ready coqtop
+    fd:9: commitBuffer: resource vanished (Broken pipe)
+
+This means you are not using a version of Coq which understands the -pgip flag.
+
+    In file included from /tmp/fileMvYC8r/webapp.c:7:0:
+    /home/ezyang/Dev/logitext/haskell.h:1:25: fatal error: urweb/urweb.h: No such file or directory
+
+You have not set your C_INCLUDE_PATH correctly.
+
+    unhandled exception: Io: openIn "/usr/local/lib/urweb/ur/char.ur" failed with SysErr: No such file or directory [noent]
+
+You forgot to pass the -boot flag to Ur/Web using URWEB_FLAGS.

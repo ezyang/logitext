@@ -268,7 +268,8 @@ theCoq = unsafePerformIO $ do
     mapM_ f
         [ "Section scratch"
         , "Parameter U : Set"
-        -- XXX factor these constants out
+        -- XXX factor these constants out; we could make them
+        -- depend on how the user initially sets up the equation
         , "Variable z : U"
         , "Variable f g h : U -> U"
         , "Variable A B C : Prop"
@@ -280,6 +281,8 @@ theCoq = unsafePerformIO $ do
     newMVar f
 
 -- XXX This is a stupid way of doing it, since parseTerm is so partial.
+-- The correct thing to do is to make up our own specific parser for
+-- this case
 start :: String -> IO P
 start g = do
     goal <- eitherError $ C.parseTerm g
@@ -352,6 +355,9 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
 -- XXX partial (not a particularly stringent requirement; you can get
 -- around it with a few intros / tactic applications
 refine' _ _ = errorModule "refine: meta-implication must be phrased as implication"
+
+-- XXX The functions here don't distinguish between developer error and
+-- user error; they all result in a null.
 
 startString :: String -> IO Lazy.ByteString
 startString s = E.encode . toJSON <$> start s

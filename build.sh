@@ -1,5 +1,10 @@
 #!/bin/bash
 # Continuous build script
+# XXX handle interrupts gracefully
+if [ -f config ]
+then
+    . config
+fi
 pkill logitext.exe
 while true
 do
@@ -7,7 +12,7 @@ do
     (
         ghc --make -c ClassicalFOLFFI.hs && \
         ghc --make -c haskell.c && \
-        urweb logitext && \
+        urweb $URWEB_FLAGS logitext && \
         ./logitext.exe
         #(./logitext.exe &) && \
         #sleep 1 && \
