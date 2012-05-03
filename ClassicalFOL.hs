@@ -8,10 +8,10 @@ import Data.Either
 import Data.Foldable (traverse_)
 import Data.IORef
 import Data.Typeable
-import Data.Data
+import Data.Data hiding (Prefix,Infix)
 import qualified Data.ByteString.Lazy as Lazy
-import Control.Applicative
-import Control.Exception
+import Control.Applicative hiding ((<|>),many)
+import Control.Exception hiding (try)
 import Control.Monad
 import Control.Concurrent.MVar
 import System.IO.Unsafe
@@ -22,6 +22,13 @@ import Data.Aeson (json')
 import Debug.Trace
 import qualified Data.Aeson.Encode as E
 import qualified Data.Attoparsec.Lazy as L
+
+-- XXX super namespace collision!
+import Text.Parsec
+import Text.Parsec.Expr
+import qualified Text.Parsec.Token as P
+import Text.Parsec.Language (emptyDef)
+import Data.Functor.Identity
 
 import qualified Coq as C
 import Coq (CoqTerm(..))
@@ -76,7 +83,7 @@ instance CoqTerm L where
     toCoq (Pred p xs) = C.App (C.Atom p) (map toCoq xs)
     toCoq (Conj a b) = C.App (C.Atom "and") [toCoq a, toCoq b]
     toCoq (Disj a b) = C.App (C.Atom "or") [toCoq a, toCoq b]
-    toCoq (Imp a b) = C.Imp (toCoq a) (toCoq b)
+    toCoq (Imp a b) = C.Forall [("_", toCoq a)] (toCoq b)
     toCoq (Not a) = C.App (C.Atom "not") [toCoq a]
     toCoq Top = C.Atom "True"
     toCoq Bot = C.Atom "False"
@@ -85,11 +92,11 @@ instance CoqTerm L where
 
     fromCoq = f Set.empty where
         f s (C.Forall [] t) = f s t
+        f s (C.Forall (("_", t):bs) t') = Imp (f s t) (f s (C.Forall bs t'))
         f s (C.Forall ((n, C.Atom "U"):bs) t) = Forall n (f (Set.insert n s) (C.Forall bs t))
         f _ (C.Forall _ _) = errorModule "L.fromCoq Forall"
         f _ (C.Fun _ _) = errorModule "L.fromCoq Fun"
         f s (C.Typed t _) = f s t
-        f s (C.Imp t t') = Imp (f s t) (f s t')
         f s (C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f (Set.insert n s) t)
         f _ (C.App (C.Atom "@ex") _) = errorModule "L.fromCoq App ex"
         f s (C.App (C.Atom "and") [t1, t2]) = Conj (f s t1) (f s t2)
@@ -290,8 +297,8 @@ theCoq = unsafePerformIO $ do
 start :: String -> IO P
 start g = do
     -- hPutStrLn stderr g
-    goal <- eitherError $ C.parseTerm g
-    return (Goal (S [] [fromCoq goal]))
+    goal <- eitherError $ parse (whiteSpace >> expr <* eof) "" g
+    return (Goal (S [] [goal]))
 
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
@@ -375,3 +382,77 @@ refineString s =
             Success a -> Just . E.encode . toJSON <$> refine a
             _ -> return Nothing
         _ -> return Nothing
+
+
+-- Parsing
+
+folStyle :: P.LanguageDef st
+folStyle = emptyDef
+                { P.commentStart    = "(*"
+                , P.commentEnd      = "*)"
+                , P.nestedComments  = True
+                , P.identStart      = letter <|> oneOf "_"
+                , P.identLetter     = alphaNum <|> oneOf "_'"
+                -- Ops are sloppy, but should work OK for our use case.
+                , P.opStart         = P.opLetter folStyle
+                , P.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
+                , P.reservedOpNames =
+                    ["(",")",".",
+                    "->", "→",
+                    "/\\","∧",
+                    "\\/","∨",
+                    "|-","⊢",
+                    "~","¬"]
+                , P.reservedNames   =
+                    [
+                    "exists","forall","fun"
+                    ]
+                , P.caseSensitive   = True
+                }
+
+lexer = P.makeTokenParser folStyle
+
+reserved   = P.reserved lexer
+identifier = P.identifier lexer
+reservedOp = P.reservedOp lexer
+integer    = P.integer lexer
+whiteSpace = P.whiteSpace lexer
+parens     = P.parens lexer
+
+-- XXX names term versus expr
+-- Coq inspired BNF to support:
+--
+-- term ::= forall binders . term
+--          exists binders . term
+--          term /\ term
+--          term \/ term
+--          ~ term
+--          T
+--          F
+--          identifier (universe , ... universe)
+--
+-- also Unicode supported, so that copypasta works
+-- XXX but it doesn't work; something is getting lost in the translation
+
+table   = [ [prefix "~" Not, prefix "¬" Not ]
+          , [binary "/\\" Conj AssocLeft, binary "∧" Conj AssocLeft ]
+          , [binary "\\/" Disj AssocLeft, binary "∨" Disj AssocLeft ]
+          , [binary "->" Imp AssocRight, binary "→" Imp AssocRight ]
+          ]
+
+binary  name fun assoc = Infix (do{ reservedOp name; return fun }) assoc
+prefix  name fun       = Prefix (do{ reservedOp name; return fun })
+postfix name fun       = Postfix (do{ reservedOp name; return fun })
+
+expr    = buildExpressionParser table term
+       <?> "expression"
+
+-- XXX wrong
+universe = errorModule "universe not defined"
+        <?> "universe"
+
+-- XXX handle quantifiers
+term    =  parens expr
+       <|> try (Pred <$> identifier <*> parens (many universe))
+       <|> try (Pred <$> identifier <*> return [])
+       <?> "simple expression"

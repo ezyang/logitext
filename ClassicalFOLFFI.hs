@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy as L
 import Foreign.Marshal.Utils
 import Foreign
 import Foreign.C.String
+import Foreign.C.UTF8 -- XXX Ughh, why is this in Takusen
 import Control.Exception
 import System.IO
 import GHC.Conc
@@ -24,7 +25,7 @@ initFFI = evaluate theCoq >> return ()
 
 startFFI :: Ptr UrwebContext -> CString -> IO CString
 startFFI ctx cs = catchToNull $ do
-    s <- peekCAString cs
+    s <- peekUTF8String cs
     r <- startString s
     lazyByteStringToUrWebCString ctx r
 

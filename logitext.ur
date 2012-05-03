@@ -286,7 +286,7 @@ and main () =
         <p>Here are some examples:</p>
         <ul>
           {tryProof "((P -> Q) -> P) -> P"}
-          {tryProof "or A (not A)"}
+          {tryProof "A \/ ~A"}
         </ul>
       </body>
     </xml>

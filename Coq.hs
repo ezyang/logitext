@@ -62,7 +62,6 @@ whiteSpace = P.whiteSpace lexer
 --  term ::= forall binders , term
 --         | fun binders => term
 --         | term : term
---         | term -> term
 --         | term arg ... arg
 --         | @ qualid term ... term
 --         | qualid
@@ -70,7 +69,7 @@ whiteSpace = P.whiteSpace lexer
 --         | num
 --  arg ::= term
 --  binders ::= binder .. binder
---  binder ::= name | ( name ... name : term )
+--  binder ::= name | name : term | ( name ... name : term )
 --  name ::= ident
 --  qualid ::= ident
 --  sort ::= Prop | Set | Type
@@ -78,7 +77,6 @@ whiteSpace = P.whiteSpace lexer
 data Term = Forall [Binder] Term
           | Fun [Binder] Term
           | Typed Term Term -- extra info
-          | Imp Term Term
           | App Term [Term]
           | Sort Sort
           | Num Integer
@@ -89,7 +87,6 @@ render :: Term -> String
 render (Forall bs t) = "(forall " ++ renderBinders bs ++ ", " ++ render t ++ ")"
 render (Fun bs t) = "(fun " ++ renderBinders bs ++ " => " ++ render t ++ ")"
 render (Typed t t') = "(" ++ render t ++ " : " ++ render t' ++ ")"
-render (Imp t t') = "(" ++ render t ++ " -> " ++ render t' ++ ")"
 render (App t ts) = "(" ++ render t ++ " " ++ intercalate " " (map render ts) ++ ")"
 render (Sort Prop) = "Prop"
 render (Sort Set) = "Set"
@@ -132,7 +129,7 @@ global :: P Term
 global = Atom <$> identifier
 
 name :: P String
-name = identifier
+name = identifier <|> ("_" <$ reservedOp "_")
 
 -- operconstr:
 --  200 RIGHTA binder_constr
@@ -154,14 +151,11 @@ term = operconstr200
 -- performance is not a primary concern.  If you're curious what the
 -- left-factored representation looks like, see Coq_efficient.hs
 
-operconstr200, operconstr100, operconstr90, operconstr10, operconstr0 :: P Term
+operconstr200, operconstr100, operconstr10, operconstr0 :: P Term
 operconstr200 = try binder_constr <|> operconstr100
-operconstr100 = try (Typed <$> operconstr90 <* reservedOp ":" <*> binder_constr)
-            <|> try (Typed <$> operconstr90 <* reservedOp ":" <*> operconstr100)
-            <|> operconstr90
-operconstr90 = try (Imp <$> operconstr10 <* reservedOp "->" <*> binder_constr)
-           <|> try (Imp <$> operconstr10 <* reservedOp "->" <*> operconstr90)
-           <|> operconstr10
+operconstr100 = try (Typed <$> operconstr10 <* reservedOp ":" <*> binder_constr)
+            <|> try (Typed <$> operconstr10 <* reservedOp ":" <*> operconstr100)
+            <|> operconstr10
 operconstr10 = try (App <$> operconstr0 <*> many1 appl_arg)
           -- XXX dropping the @ cuz we're lazy
            <|> try (reservedOp "@" >> App <$> global <*> many operconstr0)
@@ -207,8 +201,10 @@ binder = closed_binder
 
 -- closed_binder:
 --  "(" name+ ":" lconstr ")"
+--  name+ ":" lconstr
 closed_binder :: P [Binder]
-closed_binder = reservedOp "(" >> msBinder <$> many name <* reservedOp ":" <*> lconstr <* reservedOp ")"
+closed_binder = try (reservedOp "(" >> msBinder <$> many name <* reservedOp ":" <*> lconstr <* reservedOp ")")
+            <|> (msBinder <$> many name <* reservedOp ":" <*> lconstr)
 
 -- appl_arg:
 --  "(" lconstr ")" -- we don't need the hack yay!
@@ -227,7 +223,7 @@ atomic_constr = try global
 sort :: P Sort
 sort = Prop <$ reserved "Prop" <|> Set <$ reserved "Set" <|> Type <$ reserved "Type"
 
-parse_sample = "or ((forall x : U, P x) -> @ex U (fun x : U => P x)) False"
+parse_sample = "or (forall _ : forall _ : forall _ : P, Q, P, P) False"
 sample = parse (term <* eof) "" parse_sample
 
 parseTerm = parse (whiteSpace >> term <* eof) ""

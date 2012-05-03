@@ -63,7 +63,8 @@ Library
                        vector >= 0.9,
                        text >= 0.11,
                        syb >= 0.3,
-                       mtl >= 2.0
+                       mtl >= 2.0,
+                       Takusen >= 0.8
   
   -- Modules not exported by this package.
   -- Other-modules:       
