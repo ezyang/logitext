@@ -15,9 +15,11 @@ import Control.Exception
 import Control.Monad
 import Control.Concurrent.MVar
 import System.IO.Unsafe
+import System.IO
 import Text.XML.Light
 import Data.Aeson.Types (Result(..))
 import Data.Aeson (json')
+import Debug.Trace
 import qualified Data.Aeson.Encode as E
 import qualified Data.Attoparsec.Lazy as L
 
@@ -252,7 +254,9 @@ parseResponse raw = do
              . map (C.parseTerm . strContent)
              . findChildren (qn "hyp")
         <$> maybeError "parseResponse: no hyps found" (findChild (qn "hyps") resp)
-    goal <- eitherError . C.parseTerm . strContent =<< maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
+    result <- strContent <$> maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
+    -- trace result $ return ()
+    goal <- eitherError (C.parseTerm result)
     return (S (map fromCoq hypList) (listifyDisj (fromCoq goal)))
 
 data UpdateFailure = UpdateFailure
@@ -285,6 +289,7 @@ theCoq = unsafePerformIO $ do
 -- this case
 start :: String -> IO P
 start g = do
+    -- hPutStrLn stderr g
     goal <- eitherError $ C.parseTerm g
     return (Goal (S [] [fromCoq goal]))
 
@@ -296,7 +301,7 @@ refine p@(Proof s _)   = refine' s p
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
 refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
-    -- print pTop
+    -- hPutStrLn stderr (show pTop)
     -- XXX demand no errors
     -- despite being horrible mutation, this plays an important
     -- synchronizing role for us; it lets us make sure that "what we
@@ -304,7 +309,7 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
     -- is not /quite/ the right place to check the result
     currentState <- newIORef Nothing
     let run tac = do
-            -- putStrLn tac
+            -- hPutStrLn stderr tac
             r <- evaluate . parseResponse =<< f tac
             case r of
                 Right x -> writeIORef currentState (Just x) >> return True

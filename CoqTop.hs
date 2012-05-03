@@ -20,7 +20,7 @@ import Data.List.Split
 -- You'll need ezyang's private copy of Coq https://github.com/ezyang/coq
 
 coqtopProcess theory err = CreateProcess
-    { cmdspec = RawCommand "coqtop"
+    { cmdspec = RawCommand "/mit/ezyang/web_scripts/logitext/coq/bin/coqtop"
                             [ "-boot"
                             , "-l"
                             , theory ++ ".v"
@@ -39,7 +39,7 @@ onlyOnce m = do
     return (modifyMVar_ i (\m -> m >> return (return ())))
 
 coqtopRaw theory = do
-    putStrLn "Starting up coqtop..."
+    hPutStrLn stderr "Starting up coqtop..."
     -- XXX We're not really doing good things with warnings.
     -- Fortunately, fatal errors DO get put on stdout.
     err <- openFile "/dev/null" WriteMode -- XXX gimme a platform independent version!
@@ -55,15 +55,15 @@ coqtopRaw theory = do
             p _ = False
         in writeList2Chan resultChan . split (keepDelimsR (whenElt p)) =<< parseXML `fmap` hGetContents fout
     _ <- readChan resultChan -- read out the intro message
-    putStrLn "Ready coqtop"
+    hPutStrLn stderr "Ready coqtop"
     -- XXX this doesn't do particularly good things if you don't
     -- pass it enough information.  Correct thing to do is on COQ
     -- side say "I want more information!"  Nor does it do good things
     -- if you give it too much information... (de-synchronization risk)
-    interactVar <- newMVar (\s -> hPutStr fin (s ++ ".\n") >> readChan resultChan)
+    interactVar <- newMVar (\s -> hPutStrLn stderr s >> hPutStr fin (s ++ ".\n") >> readChan resultChan)
     let interact s = withMVar interactVar (\f -> f s)
     end <- onlyOnce $ do
-        putStrLn "Closing coqtop..."
+        hPutStrLn stderr "Closing coqtop..."
         killThread tout
         hClose fin
         hClose fout

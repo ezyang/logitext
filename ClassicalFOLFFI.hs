@@ -4,19 +4,20 @@ module ClassicalFOLFFI where
 
 import Prelude hiding (catch)
 import ClassicalFOL
-import Data.ByteString as S
-import Data.ByteString.Unsafe
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Lazy as L
 import Foreign.Marshal.Utils
 import Foreign
 import Foreign.C.String
 import Control.Exception
+import System.IO
 import GHC.Conc
 
 data UrwebContext
 
 catchToNull m =
-    m `catch` (\(e :: SomeException) -> print e >> return nullPtr)
+    m `catch` (\(e :: SomeException) -> hPutStrLn stderr (show e) >> return nullPtr)
 
 initFFI :: IO ()
 initFFI = evaluate theCoq >> return ()
@@ -33,7 +34,7 @@ startFFI ctx cs = catchToNull $ do
 refineFFI :: Ptr UrwebContext -> CString -> IO CString
 refineFFI ctx s = catchToNull $ do
     -- bs must not escape from this function
-    bs <- packCString s
+    bs <- S.packCString s
     r <- refineString (L.fromChunks [bs])
     case r of
      Nothing -> return nullPtr
@@ -41,7 +42,7 @@ refineFFI ctx s = catchToNull $ do
 
 lazyByteStringToUrWebCString ctx bs = do
     -- XXX S.concat is really bad! Bad Edward!
-    unsafeUseAsCStringLen (S.concat (L.toChunks bs)) $ \(c,n) -> do
+    S.unsafeUseAsCStringLen (S.concat (L.toChunks bs)) $ \(c,n) -> do
         x <- uw_malloc ctx (n+1)
         copyBytes x c n
         poke (plusPtr x n) (0 :: Word8)
