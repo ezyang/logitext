@@ -157,6 +157,7 @@ data Q a = Cut L a a
          | RConj Int a a
          | RDisj Int a
          | RImp Int a
+         | RTop Int
          | RNot Int a
          | RForall Int a
          | RExists Int U a
@@ -188,6 +189,7 @@ preorder fp fq a = tp a
     tq q@(RConj n x y)  = RConj n <$ fq q <*> tp x <*> tp y
     tq q@(RDisj n x)    = RDisj n <$ fq q <*> tp x
     tq q@(RImp n x)     = RImp n <$ fq q <*> tp x
+    tq q@(RTop n)       = RTop n <$ fq q
     tq q@(RNot n x)     = RNot n <$ fq q <*> tp x
     tq q@(RForall n x)  = RForall n <$ fq q <*> tp x
     tq q@(RExists n v x) = RExists n v <$ fq q <*> tp x
@@ -208,7 +210,7 @@ qToTac (LExact n) = Tac "lExact" [hyp n]
 qToTac (LConj n _) = Tac "lConj" [hyp n]
 qToTac (LDisj n _ _) = Tac "lDisj" [hyp n]
 qToTac (LImp n _ _) = Tac "lImp" [hyp n]
-qToTac (LBot _) = Tac "lBot" [] -- XXX huh, kind of a weird tactic
+qToTac (LBot n) = Tac "lBot" [hyp n]
 qToTac (LNot n _) = Tac "lNot" [hyp n]
 qToTac (LForall n v _) = Tac "lForall" [hyp n, C.render (toCoq v)]
 qToTac (LExists n _) = Tac "lExists" [hyp n]
@@ -218,6 +220,7 @@ qToTac (RExact n) = Tac "rExact" [con n]
 qToTac (RConj n _ _) = Tac "rConj" [con n]
 qToTac (RDisj n _) = Tac "rDisj" [con n]
 qToTac (RImp n _) = Tac "rImp" [con n]
+qToTac (RTop n) = Tac "rTop" [con n]
 qToTac (RNot n _) = Tac "rNot" [con n]
 qToTac (RForall n _) = Tac "rForall" [con n]
 qToTac (RExists n v _) = Tac "rExists" [con n, C.render (toCoq v)]
@@ -350,6 +353,7 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
                 qNum RConj{} = 2
                 qNum RDisj{} = 1
                 qNum RImp{} = 1
+                qNum RTop{} = 0
                 qNum RNot{} = 1
                 qNum RForall{} = 1
                 qNum RExists{} = 1
@@ -409,7 +413,7 @@ folStyle = emptyDef
                     "~","¬"]
                 , P.reservedNames   =
                     [
-                    "exists","forall","fun"
+                    "exists","forall","fun","True","False"
                     ]
                 , P.caseSensitive   = True
                 }
@@ -431,8 +435,8 @@ parens     = P.parens lexer
 --          term /\ term
 --          term \/ term
 --          ~ term
---          T
---          F
+--          True
+--          False
 --          identifier (universe , ... universe)
 --
 -- also Unicode supported, so that copypasta works
@@ -457,6 +461,8 @@ universe = errorModule "universe not defined"
 
 -- XXX handle quantifiers
 term    =  parens expr
+       <|> try (choice [reserved "True"] >> return Top)
+       <|> try (choice [reserved "False"] >> return Bot)
        <|> try (Pred <$> identifier <*> parens (many universe))
        <|> try (Pred <$> identifier <*> return [])
        <?> "simple expression"

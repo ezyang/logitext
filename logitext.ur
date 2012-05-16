@@ -84,6 +84,7 @@ con tactic a = variant [Cut = logic * a * a,
                         RConj = int * a * a,
                         RDisj = int * a,
                         RImp = int * a,
+                        RTop = int,
                         RNot = int * a,
                         RForall = int * a,
                         RExists = int * universe * a,
@@ -97,7 +98,7 @@ fun json_tactic [a] (_ : json a) : json (tactic a) =
   in json_variant {Cut = "Cut", LExact = "LExact", LConj = "LConj", LDisj = "LDisj",
         LImp = "LImp", LBot = "LBot", LNot = "LNot", LForall = "LForall", LExists = "LExists",
         LContract = "LContract", LWeaken = "LWeaken", RExact = "RExact", RConj = "RConj", RDisj = "RDisj",
-        RImp = "RImp", RNot = "RNot", RForall = "RForall", RExists = "Rexists",
+        RImp = "RImp", RTop = "RTop", RNot = "RNot", RForall = "RForall", RExists = "Rexists",
         RWeaken = "Rweaken", RContract = "RContract"}
   end
 
@@ -118,6 +119,7 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , RConj      = fn _ => "(∧r)"
    , RDisj      = fn _ => "(∨r)"
    , RImp       = fn _ => "(→r)"
+   , RTop       = fn _ => ""
    , RNot       = fn _ => "(¬r)"
    , RForall    = fn _ => "(∀r)"
    , RExists    = fn _ => "(∃r)"
@@ -137,34 +139,39 @@ structure Proof = Json.Recursive(struct
     end
 end)
 type proof = Proof.r
-fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
-    <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span class={junct} onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LExact] i))),
-                                    Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LConj] (i, 0)))),
-                                    Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LDisj] (i, 0, 1)))),
-                                    Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LImp] (i, 0, 1)))),
-                                    Not = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LNot] (i, 0)))),
-                                    Top = fn _ => return (),
-                                    Bot = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LBot] i))),
-                                    Forall = fn _ => return (),
-                                    Exists = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LExists] (i, 0))))
-                                    }}>
+fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody =
+    let fun makePending x = h (Proof.Rec (make [#Pending] (s, x)))
+    in
+    <xml><ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
+      <xml><li><span class={junct} onclick={match x {
+            Pred   = fn _ => makePending (make [#LExact] i),
+            Conj   = fn _ => makePending (make [#LConj] (i, 0)),
+            Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
+            Imp    = fn _ => makePending (make [#LImp] (i, 0, 1)),
+            Not    = fn _ => makePending (make [#LNot] (i, 0)),
+            Top    = fn _ => return (),
+            Bot    = fn _ => makePending (make [#LBot] i),
+            Forall = fn _ => return (),
+            Exists = fn _ => makePending (make [#LExists] (i, 0))
+            }}>
         {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps}
     </ul>
       ⊢
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span class={junct} onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RExact] i))),
-                                    Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RConj] (i, 0, 1)))),
-                                    Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RDisj] (i, 0)))),
-                                    Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RImp] (i, 0)))),
-                                    Not = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RNot] (i, 0)))),
-                                    Top = fn _ => return (), (*h (Proof.Rec (make [#Pending] (s, make [#RTop] i))),*)
-                                    Bot = fn _ => return (),
-                                    Forall = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RForall] (i, 0)))),
-                                    Exists = fn _ => return ()
-                                    }}>
+      <xml><li><span class={junct} onclick={match x {
+            Pred   = fn _ => makePending (make [#RExact] i),
+            Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
+            Disj   = fn _ => makePending (make [#RDisj] (i, 0)),
+            Imp    = fn _ => makePending (make [#RImp] (i, 0)),
+            Not    = fn _ => makePending (make [#RNot] (i, 0)),
+            Top    = fn _ => makePending (make [#RTop] i),
+            Bot    = fn _ => return (),
+            Forall = fn _ => makePending (make [#RForall] (i, 0)),
+            Exists = fn _ => return ()
+            }}>
         {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons}</ul>
   </xml>
+  end
 fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody = match r
   {Goal = fn s => <xml><table><tr><td>{renderSequent h s}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>, (* XXX do this actively *)
    Pending = fn (s, t) => <xml></xml>,
@@ -218,6 +225,7 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody 
             RImp = fn (n, a) => <xml>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RImp] (n, x))))) a}</div>
               </xml>,
+            RTop = fn n => <xml></xml>,
             RNot = fn (n, a) => <xml>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RNot] (n, x))))) a}</div>
               </xml>,
