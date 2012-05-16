@@ -413,7 +413,7 @@ folStyle = emptyDef
                     "~","¬"]
                 , P.reservedNames   =
                     [
-                    "exists","forall","fun","True","False"
+                    "exists","forall","fun","True","False","⊤","⊥"
                     ]
                 , P.caseSensitive   = True
                 }
@@ -461,8 +461,8 @@ universe = errorModule "universe not defined"
 
 -- XXX handle quantifiers
 term    =  parens expr
-       <|> try (choice [reserved "True"] >> return Top)
-       <|> try (choice [reserved "False"] >> return Bot)
+       <|> try (choice [reserved "True", reserved "⊤"] >> return Top)
+       <|> try (choice [reserved "False", reserved "⊥"] >> return Bot)
        <|> try (Pred <$> identifier <*> parens (many universe))
        <|> try (Pred <$> identifier <*> return [])
        <?> "simple expression"
