@@ -142,8 +142,8 @@ disjList (x:xs) = Disj x (disjList xs)
 data P = Goal S | Pending S (Q Int) | Proof S (Q P)
     deriving (Show, Data, Typeable)
 
-data Q a = Exact Int
-         | Cut L a a
+data Q a = Cut L a a
+         | LExact Int
          | LConj Int a
          | LDisj Int a a
          | LImp Int a a
@@ -153,6 +153,7 @@ data Q a = Exact Int
          | LExists Int a
          | LContract Int a
          | LWeaken Int a
+         | RExact Int
          | RConj Int a a
          | RDisj Int a
          | RImp Int a
@@ -172,8 +173,8 @@ preorder fp fq a = tp a
     tp p@(Pending _ _)  = fp p -- used for Pending -> Proof transition
     tp p@(Proof s q)    = Proof s <$ fp p <*> tq q -- result discarded
 
-    tq q@(Exact n)      = Exact n <$ fq q
     tq q@(Cut l x y)    = Cut l <$ fq q <*> tp x <*> tp y
+    tq q@(LExact n)     = LExact n <$ fq q
     tq q@(LConj n x)    = LConj n <$ fq q <*> tp x
     tq q@(LDisj n x y)  = LDisj n <$ fq q <*> tp x <*> tp y
     tq q@(LImp n x y)   = LImp n <$ fq q <*> tp x <*> tp y
@@ -183,6 +184,7 @@ preorder fp fq a = tp a
     tq q@(LExists n x)  = LExists n <$ fq q <*> tp x
     tq q@(LContract n x) = LContract n <$ fq q <*> tp x
     tq q@(LWeaken n x)  = LWeaken n <$ fq q <*> tp x
+    tq q@(RExact n)     = RExact n <$ fq q
     tq q@(RConj n x y)  = RConj n <$ fq q <*> tp x <*> tp y
     tq q@(RDisj n x)    = RDisj n <$ fq q <*> tp x
     tq q@(RImp n x)     = RImp n <$ fq q <*> tp x
@@ -201,8 +203,8 @@ proofComplete a = isJust (preorder fp fq a)
 hyp n = "Hyp" ++ show n
 con n = "Con" ++ show n
 
-qToTac (Exact n) = Tac "myExact" [hyp n]
 qToTac (Cut l _ _) = Tac "myCut" [C.render (toCoq l)]
+qToTac (LExact n) = Tac "lExact" [hyp n]
 qToTac (LConj n _) = Tac "lConj" [hyp n]
 qToTac (LDisj n _ _) = Tac "lDisj" [hyp n]
 qToTac (LImp n _ _) = Tac "lImp" [hyp n]
@@ -212,6 +214,7 @@ qToTac (LForall n v _) = Tac "lForall" [hyp n, C.render (toCoq v)]
 qToTac (LExists n _) = Tac "lExists" [hyp n]
 qToTac (LContract n _) = Tac "lContract" [hyp n]
 qToTac (LWeaken n _) = Tac "lWeaken" [hyp n]
+qToTac (RExact n) = Tac "rExact" [con n]
 qToTac (RConj n _ _) = Tac "rConj" [con n]
 qToTac (RDisj n _) = Tac "rDisj" [con n]
 qToTac (RImp n _) = Tac "rImp" [con n]
@@ -332,8 +335,8 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
             checkState s
             run (show (qToTac q)) >>= (`unless` throwIO UpdateFailure)
             -- XXX This is a /terrifying/ abuse of functoriality,
-            let qNum Exact{} = 0
-                qNum Cut{} = 2
+            let qNum Cut{} = 2
+                qNum LExact{} = 0
                 qNum LConj{} = 1
                 qNum LDisj{} = 2
                 qNum LImp{} = 2
@@ -343,6 +346,7 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
                 qNum LExists{} = 1
                 qNum LContract{} = 1
                 qNum LWeaken{} = 1
+                qNum RExact{} = 0
                 qNum RConj{} = 2
                 qNum RDisj{} = 1
                 qNum RImp{} = 1

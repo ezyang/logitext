@@ -46,7 +46,8 @@ structure Logic = Json.Recursive(struct
 end)
 type logic = Logic.r
 
-(* hat tip http://blog.sigfpe.com/2010/12/generalising-godels-theorem-with_24.html *)
+(* hat tip http://blog.sigfpe.com/2010/12/generalising-godels-theorem-with_24.html
+   the parser in ClassicalLogic.hs should support this syntax. *)
 fun renderParen (b : bool) (r : xbody) : xbody = if b then <xml>({r})</xml> else r
 fun renderLogic p ((Logic.Rec r) : logic) : xbody = match r
   {Pred = fn (f, xs) =>
@@ -68,8 +69,8 @@ val json_sequent : json sequent = json_record {Hyps = "hyps", Cons = "cons"}
 (* our protocol kind of precludes incremental updates. It would be nice
 if Ur/Web did this for us. *)
 
-con tactic a = variant [Exact = int,
-                        Cut = logic * a * a,
+con tactic a = variant [Cut = logic * a * a,
+                        LExact = int,
                         LConj = int * a,
                         LDisj = int * a * a,
                         LImp = int * a * a,
@@ -79,6 +80,7 @@ con tactic a = variant [Exact = int,
                         LExists = int * a,
                         LContract = int * a,
                         LWeaken = int * a,
+                        RExact = int,
                         RConj = int * a * a,
                         RDisj = int * a,
                         RImp = int * a,
@@ -92,16 +94,17 @@ fun json_tactic [a] (_ : json a) : json (tactic a) =
       val json_single : json (int * a) = json_record ("1", "2")
       val json_double : json (int * a * a) = json_record ("1", "2", "3")
       val json_instance : json (int * universe * a) = json_record ("1", "2", "3")
-  in json_variant {Exact = "Exact", Cut = "Cut", LConj = "LConj", LDisj = "LDisj",
+  in json_variant {Cut = "Cut", LExact = "LExact", LConj = "LConj", LDisj = "LDisj",
         LImp = "LImp", LBot = "LBot", LNot = "LNot", LForall = "LForall", LExists = "LExists",
-        LContract = "LContract", LWeaken = "LWeaken", RConj = "RConj", RDisj = "RDisj",
+        LContract = "LContract", LWeaken = "LWeaken", RExact = "RExact", RConj = "RConj", RDisj = "RDisj",
         RImp = "RImp", RNot = "RNot", RForall = "RForall", RExists = "Rexists",
         RWeaken = "Rweaken", RContract = "RContract"}
   end
 
 fun tacticRenderName [a] (t : tactic a) : string = match t
-   { Exact      = fn _ => ""
-   , Cut        = fn _ => "(cut)"
+   {
+     Cut        = fn _ => "(cut)"
+   , LExact     = fn _ => ""
    , LConj      = fn _ => "(∧l)"
    , LDisj      = fn _ => "(∨l)"
    , LImp       = fn _ => "(→l)"
@@ -111,6 +114,7 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , LExists    = fn _ => "(∃l)"
    , LContract  = fn _ => "(contract:l)"
    , LWeaken    = fn _ => "(weaken:l)"
+   , RExact     = fn _ => ""
    , RConj      = fn _ => "(∧r)"
    , RDisj      = fn _ => "(∨r)"
    , RImp       = fn _ => "(→r)"
@@ -135,7 +139,7 @@ end)
 type proof = Proof.r
 fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span class={junct} onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#Exact] i))),
+      <xml><li><span class={junct} onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LExact] i))),
                                     Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LConj] (i, 0)))),
                                     Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LDisj] (i, 0, 1)))),
                                     Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#LImp] (i, 0, 1)))),
@@ -149,7 +153,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody = <xml>
     </ul>
       ⊢
     <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span class={junct} onclick={match x {Pred = fn _ => return (),
+      <xml><li><span class={junct} onclick={match x {Pred = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RExact] i))),
                                     Conj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RConj] (i, 0, 1)))),
                                     Disj = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RDisj] (i, 0)))),
                                     Imp = fn _ => h (Proof.Rec (make [#Pending] (s, make [#RImp] (i, 0)))),
@@ -166,13 +170,16 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody 
    Pending = fn (s, t) => <xml></xml>,
    Proof = fn (s, t) =>
        <xml>
-         (* XXX could use some metaprogramming yo *)
+         (* XXX could use some metaprogramming yo.  However, doing it the obvious
+            way runs into "Substitution in constructor is blocked by a too-deep unification variable";
+            this is probably a compiler bug
+          *)
           <div>{match t {
-            Exact = fn _ => <xml>&nbsp;</xml>,
             Cut = fn (l, a, b) => <xml>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, x, b))))) a}</div>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, a, x))))) b}</div>
               </xml>,
+            LExact = fn _ => <xml>&nbsp;</xml>,
             LConj = fn (n, a) => <xml>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LConj] (n, x))))) a}</div>
               </xml>,
@@ -200,6 +207,7 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody 
             LWeaken = fn (n, a) => <xml>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LWeaken] (n, x))))) a}</div>
               </xml>,
+            RExact = fn _ => <xml>&nbsp;</xml>,
             RConj = fn (n, a, b) => <xml>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, x, b))))) a}</div>
                 <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, a, x))))) b}</div>

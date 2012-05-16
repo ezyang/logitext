@@ -112,8 +112,6 @@ Ltac dropPos H :=
 
 (* actual user visible tactics *)
 
-Ltac myExact H :=
-  solve [unwrap H; repeat match goal with [ |- ?P \/ ?Q ] => try (solve [left; exact H]); right end].
 Ltac myCut T :=
   match goal with [ |- ?G ] =>
     cut (T \/ G); [ let G := fresh in intro G; destruct G as [G|G]; [wrap G|exact G] | ]
@@ -124,6 +122,8 @@ Ltac myCut T :=
    they all get dumped at the beginning of the hypothesis context after a canonicalize;
    but lDisj doesn't increase in size so no reordering happens. It's unclear what's
    preferable. *)
+Ltac lExact H :=
+  solve [unwrap H; repeat match goal with [ |- ?P \/ ?Q ] => try (solve [left; exact H]); right end].
 Ltac lConj H :=
   match type of H with Hyp (_ /\ _) =>
     let H1 := fresh in let H2 := fresh in
@@ -154,9 +154,11 @@ Ltac lExists H :=
   match type of H with Hyp (exists _, _) =>
     unwrap H; let x := fresh "x" in destruct H as [x H]; wrap H
   end; canonicalize.
-Ltac lContract H := match type of H with Hyp ?T => myCut T; [|myExact H] end; canonicalize.
+Ltac lContract H := match type of H with Hyp ?T => myCut T; [|lExact H] end; canonicalize.
 Ltac lWeaken H := clear H; canonicalize.
 
+Ltac negExact H :=
+  solve [unwrap H; repeat match goal with [ |- not (?P /\ ?Q) ] => apply or_not_and; try (solve [left; exact H]); right end].
 Ltac negImp H :=
   match type of H with Hyp (~ (_ (* H1 *) -> _ (* H2 *))) =>
     unwrap H; apply imply_to_and in H;
@@ -200,11 +202,12 @@ Ltac negContract H :=
   assert T by assumption.
 
 Ltac rWrap tac H := posneg; tac H; negpos.
+Ltac rExact H := posneg; negExact H.
 Ltac rConj H := rWrap negConj H.
 (* Alternatively, commit to a disjunction *)
 Ltac rDisj H := rWrap negDisj H.
 Ltac rImp H := rWrap negImp H.
-Ltac rTop H := rWrap negTop H.
+Ltac rTop H := posneg; negTop H.
 Ltac rNot H := rWrap negNot H.
 Ltac rForall H := rWrap negForall H.
 Ltac rExists H t := posneg; negExists H t; negpos.
@@ -233,10 +236,10 @@ Goal denote ( [ True; C /\ C; (~ True) \/ True ] |= [ False; False; False; ((A -
     rImp Con3.
     lImp Hyp0.
     rImp Con0.
-    myExact Hyp0.
+    lExact Hyp0.
     rContract Con0.
     rWeaken Con0.
-    myExact Hyp0.
+    rExact Con2.
 Qed.
 
 Goal denote ( nil |= [ (forall x, P x) -> exists x, P x ] ).
@@ -244,7 +247,7 @@ Goal denote ( nil |= [ (forall x, P x) -> exists x, P x ] ).
     rImp Con0.
     lForall Hyp0 z.
     rExists Con0 z.
-    myExact Hyp0.
+    lExact Hyp0.
 Qed.
 
 Goal denote ( nil |= [ (exists x, P x) -> ~ (forall x, ~ P x) ] ).
@@ -254,7 +257,7 @@ Goal denote ( nil |= [ (exists x, P x) -> ~ (forall x, ~ P x) ] ).
     rNot Con0.
     lForall Hyp0 x.
     lNot Hyp0.
-    myExact Hyp0.
+    lExact Hyp0.
 Qed.
 
 Goal denote ( nil |= [ ((A -> B) -> A) -> A ] ).
@@ -262,15 +265,15 @@ Goal denote ( nil |= [ ((A -> B) -> A) -> A ] ).
     rImp Con0.
     lImp Hyp0.
     rImp Con0.
-    myExact Hyp0.
-    myExact Hyp0.
+    lExact Hyp0.
+    lExact Hyp0.
 Qed.
 
 Goal denote ( nil |= [ A \/ (A -> False) ] ).
   sequent.
     rDisj Con0.
     rImp Con1.
-    myExact Hyp0.
+    lExact Hyp0.
 Qed.
 
 Goal denote ( nil |= [ exists x, ((exists y, P y) -> P x) ] ).
@@ -282,7 +285,7 @@ Goal denote ( nil |= [ exists x, ((exists y, P y) -> P x) ] ).
     lExists Hyp0.
     rExists Con0 x.
     rImp Con0.
-    myExact Hyp1.
+    lExact Hyp1.
 Qed.
 
 (* slight rendering strangeness here *)
@@ -290,7 +293,7 @@ Goal denote ( nil |= [ A -> forall (x : U), A ] ).
   sequent.
     rImp Con0.
     rForall Con0.
-    myExact Hyp0.
+    lExact Hyp0.
 Qed.
 
 Goal denote ( nil |= [ exists x, P x -> forall y, P y ] ).
@@ -302,7 +305,7 @@ Goal denote ( nil |= [ exists x, P x -> forall y, P y ] ).
     rWeaken Hyp0.
     rExists Con1 x.
     rImp Con1.
-    myExact Hyp0.
+    lExact Hyp0.
 Qed.
 
 End universe.
