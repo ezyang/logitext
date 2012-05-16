@@ -173,78 +173,44 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody =
   </xml>
   end
 fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody = match r
-  {Goal = fn s => <xml><table><tr><td>{renderSequent h s}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>, (* XXX do this actively *)
+  {Goal = fn s => 
+       (* XXX It would be neat if mouse over caused this to change, but a little difficult *)
+       <xml><table><tr><td>{renderSequent h s}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
    Pending = fn (s, t) => <xml></xml>,
    Proof = fn (s, t) =>
-       <xml>
+       let fun render f t = <xml><div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t}</div></xml>
+       in <xml>
          (* XXX could use some metaprogramming yo.  However, doing it the obvious
             way runs into "Substitution in constructor is blocked by a too-deep unification variable";
             this is probably a compiler bug
           *)
           <div>{match t {
-            Cut = fn (l, a, b) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, x, b))))) a}</div>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, a, x))))) b}</div>
-              </xml>,
-            LExact = fn _ => <xml>&nbsp;</xml>,
-            LConj = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LConj] (n, x))))) a}</div>
-              </xml>,
-            LDisj = fn (n, a, b) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, x, b))))) a}</div>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, a, x))))) b}</div>
-              </xml>,
-            LImp = fn (n, a, b) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, x, b))))) a}</div>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, a, x))))) b}</div>
-              </xml>,
-            LBot = fn n => <xml></xml>,
-            LNot = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LNot] (n, x))))) a}</div>
-              </xml>,
-            LForall = fn (n, u, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LForall] (n, u, x))))) a}</div>
-              </xml>,
-            LExists = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LExists] (n, x))))) a}</div>
-              </xml>,
-            LContract = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LContract] (n, x))))) a}</div>
-              </xml>,
-            LWeaken = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LWeaken] (n, x))))) a}</div>
-              </xml>,
-            RExact = fn _ => <xml>&nbsp;</xml>,
-            RConj = fn (n, a, b) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, x, b))))) a}</div>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, a, x))))) b}</div>
-              </xml>,
-            RDisj = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RDisj] (n, x))))) a}</div>
-              </xml>,
-            RImp = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RImp] (n, x))))) a}</div>
-              </xml>,
-            RTop = fn n => <xml></xml>,
-            RNot = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RNot] (n, x))))) a}</div>
-              </xml>,
-            RForall = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RForall] (n, x))))) a}</div>
-              </xml>,
-            RExists = fn (n, u, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LForall] (n, u, x))))) a}</div>
-              </xml>,
-            RContract = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RContract] (n, x))))) a}</div>
-              </xml>,
-            RWeaken = fn (n, a) => <xml>
-                <div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RWeaken] (n, x))))) a}</div>
-              </xml>
+            Cut       = fn (l, a, b) => join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
+            LExact    = fn _ => <xml></xml>,
+            LBot      = fn _ => <xml></xml>,
+            RExact    = fn _ => <xml></xml>,
+            RTop      = fn _ => <xml></xml>,
+            LConj     = fn (n, a) => render (fn x => make [#LConj]     (n, x)) a,
+            LNot      = fn (n, a) => render (fn x => make [#LNot]      (n, x)) a,
+            LExists   = fn (n, a) => render (fn x => make [#LExists]   (n, x)) a,
+            LContract = fn (n, a) => render (fn x => make [#LContract] (n, x)) a,
+            LWeaken   = fn (n, a) => render (fn x => make [#LWeaken]   (n, x)) a,
+            RDisj     = fn (n, a) => render (fn x => make [#RDisj]     (n, x)) a,
+            RImp      = fn (n, a) => render (fn x => make [#RImp]      (n, x)) a,
+            RNot      = fn (n, a) => render (fn x => make [#RNot]      (n, x)) a,
+            RForall   = fn (n, a) => render (fn x => make [#RForall]   (n, x)) a,
+            RContract = fn (n, a) => render (fn x => make [#RContract] (n, x)) a,
+            RWeaken   = fn (n, a) => render (fn x => make [#RWeaken]   (n, x)) a,
+            LForall   = fn (n, u, a) => render (fn x => make [#LForall] (n, u, x)) a,
+            RExists   = fn (n, u, a) => render (fn x => make [#RExists] (n, u, x)) a,
+            LDisj     = fn (n, a, b) => join (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
+            LImp      = fn (n, a, b) => join (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
+            RConj     = fn (n, a, b) => join (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
           }}</div>
        <table>
           <tr><td class={inference}>{renderSequent h s}</td><td class={tagBox}><div class={tag}>{[tacticRenderName t]}</div></td></tr>
        </table></xml>
+       end
     }
 
 fun zapRefine (x : proof) : transaction (option string)  = return (Haskell.refine (toJson x))
