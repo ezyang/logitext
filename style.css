@@ -15,3 +15,7 @@
 .commaList li { display: inline; }
 .commaList li:after { content: ','; }
 .commaList li:last-child:after { content: ''; }
+
+/* hat tip http://stackoverflow.com/questions/6040005/relatively-position-an-element-without-it-taking-up-space-in-document-flow */
+.relMark {position:relative; width:0; height:0; display:inline;}
+.offsetBox {position:absolute; z-index:1; top:0.2em; left:0;}

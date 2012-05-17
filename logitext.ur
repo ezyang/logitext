@@ -6,23 +6,25 @@ style sibling
 style junct
 style viewport
 style commaList
+style relMark
+style offsetBox
 
 open Json
 
 task initialize = Haskell.init
 
 structure Universe = Json.Recursive(struct
-  con t a = variant [Fun = string * list a,
-                     Var = string]
-  fun json_t [a] (_ : json a) : json (t a) =
-    let val json_fun : json (string * list a) = json_record ("1", "2")
-    in json_variant {Fun = "Fun", Var = "Var"}
-    end
+  con t a = string * list a
+  fun json_t [a] (_ : json a) : json (t a) = json_record ("1", "2")
 end)
 type universe = Universe.r
-fun renderUniverse ((Universe.Rec r) : universe) : xbody = match r
-  {Fun = fn (f, xs) => <xml>{[f]}(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>,
-   Var = fn x => <xml>{[x]}</xml>}
+fun renderUniverse ((Universe.Rec (f,xs)) : universe) : xbody =
+  <xml>{[f]}{
+    case xs of
+    | Cons _ => <xml>(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>
+    | Nil => <xml></xml>
+    }</xml>
+fun zapParseUniverse x : transaction (option string) = return (Haskell.parseUniverse x)
 
 structure Logic = Json.Recursive(struct
   con t a = variant [Pred = string * list universe,
@@ -154,6 +156,8 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
     in
     left <- mapXiM (fn i (Logic.Rec x) =>
+              (* XXX suboptimal; only want to allocate prompter when necessary *)
+              prompter <- source <xml></xml>;
               return <xml><li><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#LExact] i),
                     Conj   = fn _ => makePending (make [#LConj] (i, 0)),
@@ -162,10 +166,24 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Not    = fn _ => makePending (make [#LNot] (i, 0)),
                     Top    = fn _ => return (),
                     Bot    = fn _ => makePending (make [#LBot] i),
-                    Forall = fn _ => return (),
+                    Forall = fn _ =>
+                        r <- source "";
+                        set prompter <xml><div class={relMark}>
+                            <div class={offsetBox}>
+                              <ctextbox size=6 source={r}
+                                onkeyup={fn k => if eq k 13
+                                    then (
+                                        rawu <- get r;
+                                        u <- rpc (zapParseUniverse rawu);
+                                        case u of
+                                            | None => return ()
+                                            | Some ju => makePending (make [#LForall] (i, (fromJson ju : universe), 0)))
+                                    else return ()} />
+                            </div>
+                          </div></xml>,
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }}>
-                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps;
+                {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Hyps;
     right <- mapXiM (fn i (Logic.Rec x) =>
               return <xml><li><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#RExact] i),
@@ -319,7 +337,7 @@ and main () =
         </form>
         <p>Here are some examples:</p>
         <ul>
-          {tryProof "((P -> Q) -> P) -> P"}
+          {tryProof "((A -> B) -> A) -> A"}
           {tryProof "A \/ ~A"}
         </ul>
       </body>

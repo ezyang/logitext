@@ -230,15 +230,6 @@ parseTerm = parse (whiteSpace >> term <* eof) ""
 
 -- XXX can haz test please (do it before you make changes)
 
--- XXX OK, so the situation here is a little confusing:
--- essentially, bound variables and other syntactic
--- properties recursively how we translate Coq terms into
--- our language's terms, but the fromCoq signature has no
--- provision for doing this.  However, there may be possibly
--- unbounded data types we may want to use to keep track of
--- this data (and not just sets of strings, as this module does)
--- so it's not clear what the right choice for this type
--- class here.
 class CoqTerm a where
     toCoq :: a -> Term
     fromCoq :: Term -> a

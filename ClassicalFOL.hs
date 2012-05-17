@@ -50,22 +50,15 @@ type FunV = String
 data S = S { hyps :: [L], cons :: [L] }
     deriving (Show, Eq, Data, Typeable)
 
--- Elements in the universe.  Distinguish between a constant and a
--- bound variable (probably not strictly necessary, but convenient)
+-- Elements in the universe.  Constants have empty arg list.
 data U = Fun FunV [U]
-       | Var V
     deriving (Show, Eq, Data, Typeable)
 
 instance CoqTerm U where
     toCoq (Fun f xs) = C.App (C.Atom f) (map toCoq xs)
-    toCoq (Var x) = C.Atom x
-    fromCoq = coqToU Set.empty
-
--- (see CoqTerm XXX in Coq for clarification)
-coqToU s (C.Atom n) | n `Set.member` s = Var n
-                    | otherwise = Fun n []
-coqToU s (C.App (C.Atom n) us) = Fun n (map (coqToU s) us)
-coqToU _ _ = errorModule "coqToU"
+    fromCoq (C.Atom n) = Fun n []
+    fromCoq (C.App (C.Atom n) us) = Fun n (map fromCoq us)
+    fromCoq _ = errorModule "U.fromCoq"
 
 data L = Pred PredV [U] -- could be (Pred "A" [])
        | Conj L L
@@ -90,28 +83,28 @@ instance CoqTerm L where
     toCoq (Forall x a) = C.Forall [(x, C.Atom "U")] (toCoq a)
     toCoq (Exists x a) = C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(x, C.Atom "U")] (toCoq a)]
 
-    fromCoq = f Set.empty where
-        f s (C.Forall [] t) = f s t
-        f s (C.Forall (("_", t):bs) t') = Imp (f s t) (f s (C.Forall bs t'))
-        f s (C.Forall ((n, C.Atom "U"):bs) t) = Forall n (f (Set.insert n s) (C.Forall bs t))
-        f _ (C.Forall _ _) = errorModule "L.fromCoq Forall"
-        f _ (C.Fun _ _) = errorModule "L.fromCoq Fun"
-        f s (C.Typed t _) = f s t
-        f s (C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f (Set.insert n s) t)
-        f _ (C.App (C.Atom "@ex") _) = errorModule "L.fromCoq App ex"
-        f s (C.App (C.Atom "and") [t1, t2]) = Conj (f s t1) (f s t2)
-        f _ (C.App (C.Atom "and") _) = errorModule "L.fromCoq App and"
-        f s (C.App (C.Atom "or") [t1, t2]) = Disj (f s t1) (f s t2)
-        f _ (C.App (C.Atom "or") _) = errorModule "L.fromCoq App or"
-        f s (C.App (C.Atom "not") [t]) = Not (f s t)
-        f _ (C.App (C.Atom "not") _) = errorModule "L.fromCoq App not"
-        f s (C.App (C.Atom p) ts) = Pred p (map (coqToU s) ts)
-        f _ (C.App _ _) = errorModule "L.fromCoq App"
-        f _ (C.Sort _) = errorModule "L.fromCoq Sort"
-        f _ (C.Num _) = errorModule "L.fromCoq Num"
-        f _ (C.Atom "True") = Top
-        f _ (C.Atom "False") = Bot
-        f _ (C.Atom n) = Pred n []
+    fromCoq = f where
+        f (C.Forall [] t) = f t
+        f (C.Forall (("_", t):bs) t') = Imp (f t) (f (C.Forall bs t'))
+        f (C.Forall ((n, C.Atom "U"):bs) t) = Forall n (f (C.Forall bs t))
+        f (C.Forall _ _) = errorModule "L.fromCoq Forall"
+        f (C.Fun _ _) = errorModule "L.fromCoq Fun"
+        f (C.Typed t _) = f t
+        f (C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f t)
+        f (C.App (C.Atom "@ex") _) = errorModule "L.fromCoq App ex"
+        f (C.App (C.Atom "and") [t1, t2]) = Conj (f t1) (f t2)
+        f (C.App (C.Atom "and") _) = errorModule "L.fromCoq App and"
+        f (C.App (C.Atom "or") [t1, t2]) = Disj (f t1) (f t2)
+        f (C.App (C.Atom "or") _) = errorModule "L.fromCoq App or"
+        f (C.App (C.Atom "not") [t]) = Not (f t)
+        f (C.App (C.Atom "not") _) = errorModule "L.fromCoq App not"
+        f (C.App (C.Atom p) ts) = Pred p (map fromCoq ts)
+        f (C.App _ _) = errorModule "L.fromCoq App"
+        f (C.Sort _) = errorModule "L.fromCoq Sort"
+        f (C.Num _) = errorModule "L.fromCoq Num"
+        f (C.Atom "True") = Top
+        f (C.Atom "False") = Bot
+        f (C.Atom n) = Pred n []
 
 listifyDisj :: L -> [L]
 listifyDisj Bot = []
@@ -290,7 +283,7 @@ theCoq = unsafePerformIO $ do
         , "Variable z : U"
         , "Variable f g h : U -> U"
         , "Variable A B C : Prop"
-        , "Variable P Q R : Prop"
+        , "Variable P Q R : U -> Prop"
         , "Set Printing All"
         , "Set Default Timeout 1" -- should be more than enough! no proof search see?
         , "Set Undo 0" -- not gonna use it
@@ -322,14 +315,14 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
     -- is not /quite/ the right place to check the result
     currentState <- newIORef Nothing
     let run tac = do
-            -- hPutStrLn stderr tac
+            hPutStrLn stderr tac
             r <- evaluate . parseResponse =<< f tac
             case r of
                 Right x -> writeIORef currentState (Just x) >> return True
                 Left TacticFailure -> return False
                 Left NoMoreSubgoals -> writeIORef currentState Nothing >> return True
         readState = readIORef currentState
-        checkState s = readState >>= \s' -> assert (Just s == s') (return ())
+        checkState s = readState >>= \s' -> print s' >> assert (Just s == s') (return ())
     r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
     when (not r) $ errorModule "refine: setting goal failed" -- we're kind of screwed
     let fp p@(Goal s) = checkState s >> (run "admit" >>= (`unless` errorModule "refine: could not admit")) >> return p
@@ -461,7 +454,7 @@ expr    = buildExpressionParser table term
 
 universe =  try (parens universe)
         <|> try (Fun <$> identifier <*> parens (commaSep1 universe))
-        <|> try (Var <$> identifier)
+        <|> try (Fun <$> identifier <*> return [])
         <?> "universe"
 
 manyForall (b:bs) e = Forall b (manyForall bs e)
