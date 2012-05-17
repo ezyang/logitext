@@ -323,7 +323,9 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
                 Left TacticFailure -> return False
                 Left NoMoreSubgoals -> writeIORef currentState Nothing >> return True
         readState = readIORef currentState
-        checkState s = readState >>= \s' -> print s' >> assert (Just s == s') (return ())
+        -- XXX the original invariant we checked didn't handle Coq
+        -- alpha-renaming binders for us. Oops.
+        checkState s = return () -- readState >>= \s' -> print s' >> assert (Just s == s') (return ())
     r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
     when (not r) $ errorModule "refine: setting goal failed" -- we're kind of screwed
     let fp p@(Goal s) = checkState s >> (run "admit" >>= (`unless` errorModule "refine: could not admit")) >> return p

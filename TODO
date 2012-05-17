@@ -4,6 +4,9 @@
 - figure out better layout css (looks bad in Chrome)
 - user error handling
 
+- we should check for alpha-equivalence for state synchronizing, but
+  we don't (example: forall x, P(x) -> forall x, P(x))
+
 - Idea for dynamic updating: start off with the extra thing but at
   display:none; (width/height zero), then have it be empty but expand
   out (to allocate space) and then add in the text
