@@ -29,6 +29,12 @@ startFFI ctx cs = catchToNull $ do
     r <- startString s
     lazyByteStringToUrWebCString ctx r
 
+parseUniverseFFI :: Ptr UrwebContext -> CString -> IO CString
+parseUniverseFFI ctx cs = catchToNull $ do
+    s <- peekUTF8String cs
+    r <- parseUniverseString s
+    lazyByteStringToUrWebCString ctx r
+
 -- incoming string doesn't have to be Haskell managed
 -- outgoing string is on Urweb allocated memory, and
 -- is the unique outgoing one
@@ -59,6 +65,7 @@ lazyByteStringToUrWebCString ctx bs = do
 
 foreign export ccall refineFFI :: Ptr UrwebContext -> CString -> IO CString
 foreign export ccall startFFI :: Ptr UrwebContext -> CString -> IO CString
+foreign export ccall parseUniverseFFI :: Ptr UrwebContext -> CString -> IO CString
 foreign export ccall initFFI :: IO ()
 
 foreign import ccall "urweb.h uw_malloc"

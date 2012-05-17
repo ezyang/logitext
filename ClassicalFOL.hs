@@ -297,14 +297,14 @@ theCoq = unsafePerformIO $ do
         ]
     newMVar f
 
--- XXX This is a stupid way of doing it, since parseTerm is so partial.
--- The correct thing to do is to make up our own specific parser for
--- this case
 start :: String -> IO P
 start g = do
     -- hPutStrLn stderr g
     goal <- eitherError $ parse (whiteSpace >> expr <* eof) "" g
     return (Goal (S [] [goal]))
+
+parseUniverse :: String -> IO U
+parseUniverse g = eitherError $ parse (whiteSpace >> universe <* eof) "" g
 
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
@@ -381,6 +381,9 @@ refine' _ _ = errorModule "refine: meta-implication must be phrased as implicati
 
 startString :: String -> IO Lazy.ByteString
 startString s = E.encode . toJSON <$> start s
+
+parseUniverseString :: String -> IO Lazy.ByteString
+parseUniverseString s = E.encode . toJSON <$> parseUniverse s
 
 refineString :: Lazy.ByteString -> IO (Maybe Lazy.ByteString)
 refineString s =
