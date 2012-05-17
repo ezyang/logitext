@@ -189,39 +189,69 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
    Pending = fn (s, t) => return <xml></xml>,
    Proof = fn (s, t) =>
        sequent <- renderSequent h s;
-       let fun render f t : transaction xbody =
-                sib <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
-                return <xml><div class={sibling}>{sib}</div></xml>
-           fun empty (_ : int) : transaction xbody = return <xml></xml>
-           (* should be 'liftM2 join' where liftM2 is a monad lib function *)
-           fun joinM m1 m2 = x1 <- m1; x2 <- m2; return (join x1 x2)
-       in
        top <- match t {
-          Cut       = fn (l, a, b) => joinM (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
-          LExact    = empty,
-          LBot      = empty,
-          RExact    = empty,
-          RTop      = empty,
-          (* XXX could use some metaprogramming.  However, doing it the obvious
-             way runs into "Substitution in constructor is blocked by a too-deep unification variable";
-             if you add more type annotations, you then get "Can't unify record constructors"
-          *)
-          LConj     = fn (n, a) => render (fn x => make [#LConj]     (n, x)) a,
-          LNot      = fn (n, a) => render (fn x => make [#LNot]      (n, x)) a,
-          LExists   = fn (n, a) => render (fn x => make [#LExists]   (n, x)) a,
-          LContract = fn (n, a) => render (fn x => make [#LContract] (n, x)) a,
-          LWeaken   = fn (n, a) => render (fn x => make [#LWeaken]   (n, x)) a,
-          RDisj     = fn (n, a) => render (fn x => make [#RDisj]     (n, x)) a,
-          RImp      = fn (n, a) => render (fn x => make [#RImp]      (n, x)) a,
-          RNot      = fn (n, a) => render (fn x => make [#RNot]      (n, x)) a,
-          RForall   = fn (n, a) => render (fn x => make [#RForall]   (n, x)) a,
-          RContract = fn (n, a) => render (fn x => make [#RContract] (n, x)) a,
-          RWeaken   = fn (n, a) => render (fn x => make [#RWeaken]   (n, x)) a,
-          LForall   = fn (n, u, a) => render (fn x => make [#LForall] (n, u, x)) a,
-          RExists   = fn (n, u, a) => render (fn x => make [#RExists] (n, u, x)) a,
-          LDisj     = fn (n, a, b) => joinM (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
-          LImp      = fn (n, a, b) => joinM (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
-          RConj     = fn (n, a, b) => joinM (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
+            Cut = fn (l, a, b) =>
+              s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, x, b))))) a;
+              s2 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#Cut] (l, a, x))))) b;
+              return <xml>
+                <div class={sibling}>{s1}</div>
+                <div class={sibling}>{s2}</div>
+              </xml>,
+            LExact = fn _ => return <xml>&nbsp;</xml>,
+            LConj = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LConj] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            LDisj = fn (n, a, b) =>
+              s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, x, b))))) a;
+              s2 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LDisj] (n, a, x))))) b;
+              return <xml><div class={sibling}>{s1}</div><div class={sibling}>{s2}</div></xml>,
+            LImp = fn (n, a, b) =>
+              s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, x, b))))) a;
+              s2 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LImp] (n, a, x))))) b;
+              return <xml><div class={sibling}>{s1}</div><div class={sibling}>{s2}</div></xml>,
+            LBot = fn n => return <xml></xml>,
+            LNot = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LNot] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            LForall = fn (n, u, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LForall] (n, u, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            LExists = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LExists] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            LContract = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LContract] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            LWeaken = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#LWeaken] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            RExact = fn _ => return <xml>&nbsp;</xml>,
+            RConj = fn (n, a, b) =>
+              s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, x, b))))) a;
+              s2 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RConj] (n, a, x))))) b;
+              return <xml><div class={sibling}>{s1}</div><div class={sibling}>{s2}</div></xml>,
+            RDisj = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RDisj] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            RImp = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RImp] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            RTop = fn n => return <xml></xml>,
+            RNot = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RNot] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            RForall = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RForall] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            RExists = fn (n, u, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RExists] (n, u, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            RContract = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RContract] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
+            RWeaken = fn (n, a) =>
+                s1 <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, make [#RWeaken] (n, x))))) a;
+                return <xml><div class={sibling}>{s1}</div></xml>,
        };
        return <xml>
         <div>{top}</div>
@@ -233,7 +263,6 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
             </td>
           </tr>
         </table></xml>
-       end
     }
 
 fun zapRefine (x : proof) : transaction (option string)  = return (Haskell.refine (toJson x))
