@@ -179,17 +179,18 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody 
    Pending = fn (s, t) => <xml></xml>,
    Proof = fn (s, t) =>
        let fun render f t = <xml><div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t}</div></xml>
+           fun empty (_ : int) = <xml></xml>
        in <xml>
-         (* XXX could use some metaprogramming yo.  However, doing it the obvious
-            way runs into "Substitution in constructor is blocked by a too-deep unification variable";
-            this is probably a compiler bug
-          *)
           <div>{match t {
             Cut       = fn (l, a, b) => join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
-            LExact    = fn _ => <xml></xml>,
-            LBot      = fn _ => <xml></xml>,
-            RExact    = fn _ => <xml></xml>,
-            RTop      = fn _ => <xml></xml>,
+            LExact    = empty,
+            LBot      = empty,
+            RExact    = empty,
+            RTop      = empty,
+            (* XXX could use some metaprogramming.  However, doing it the obvious
+               way runs into "Substitution in constructor is blocked by a too-deep unification variable";
+               if you add more type annotations, you then get "Can't unify record constructors"
+            *)
             LConj     = fn (n, a) => render (fn x => make [#LConj]     (n, x)) a,
             LNot      = fn (n, a) => render (fn x => make [#LNot]      (n, x)) a,
             LExists   = fn (n, a) => render (fn x => make [#LExists]   (n, x)) a,
@@ -206,10 +207,15 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody 
             LDisj     = fn (n, a, b) => join (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
             LImp      = fn (n, a, b) => join (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
             RConj     = fn (n, a, b) => join (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
-          }}</div>
-       <table>
-          <tr><td class={inference}>{renderSequent h s}</td><td class={tagBox}><div class={tag}>{[tacticRenderName t]}</div></td></tr>
-       </table></xml>
+        }}</div>
+        <table>
+          <tr>
+            <td class={inference}>{renderSequent h s}</td>
+            <td class={tagBox}>
+                <div class={tag}>{[tacticRenderName t]}</div>
+            </td>
+          </tr>
+        </table></xml>
        end
     }
 
