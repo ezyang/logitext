@@ -1,7 +1,10 @@
-.zeropoint { z-index: 10; }
-.viewport { height:500px; width:800px; overflow:hidden; border:1px #CCC solid; }
+.page { width:42em; margin: 0 auto; margin-top: 5em }
 
-.proof { display: inline-block; }
+.zeropoint { z-index: 10; }
+.viewport { height:500px; width:800px; overflow:hidden; border:1px #CCC solid; text-align:center; }
+
+.working { text-align:center; margin-top:3em; }
+.proof { display:inline-block; }
 .proof table { width:100%; border-collapse:collapse; margin: auto; }
 .proof td { padding:0; border:0; margin:0; text-align:center; }
 .proof .sibling { display: inline-block; vertical-align:bottom; }

@@ -8,6 +8,8 @@ style viewport
 style commaList
 style relMark
 style offsetBox
+style working
+style page
 
 open Json
 
@@ -309,12 +311,27 @@ fun proving goal =
               | None => return ()
               | Some r => bind (renderProof handler (fromJson r : proof)) (set v)
         }>
-          <p><a link={main ()}>Try something else...</a></p>
-          <div class={proof}>
-            <dyn signal={signal v}/>
+        <div class={page}>
+          <p>Sequent calculus is a form of <i>backwards reasoning</i>, where
+          you start with the goal and make deductions until you reach an axiomatically
+          valid statement (A ⊢ A). The turnstile (⊢) is a meta-implication which
+          divides your hypotheses (on the left) and your goals (on the right).  All
+          of the hypotheses are available to you, and as a system for classical
+          logic you only need to manage to prove one of the goals (it's a disjunction).
+          Sequent calculus inference steps involve the backwards elimination of
+          a clause (on the left side or right side); you can find out what happens
+          if you try to eliminate a clause by clicking on it.  Some inference rules
+          require you to specify a value to instantiate a variable to; type it in and press enter.
+          <a link={main ()}>Or try something else...</a></p>
+          <div class={working}>
+              <div class={proof}>
+                <dyn signal={signal v}/>
+              </div>
           </div>
+        </div>
         </body>
       </xml>
+      (* XXX initially, the proof box should glow, so the user nows that this is special *)
   end
   (*
   seqid <- fresh;
@@ -333,18 +350,29 @@ and main () =
   return <xml>
       <head>
         <title>Logitext</title>
+          {head}
       </head>
       <body>
-        <p>Type in something to prove (XXX syntax):</p>
+      <div class={page}>
+        <p>Logitext is an educational proof assistant for <i>first-order classical
+        logic</i> using the <i>sequent calculus</i>, in the same tradition as Jape, Pandora, Panda and Yoda.
+        It is intended to assist students who are learning <i>Gentzen trees</i>
+        as a way of structuring derivations of logical statements.
+        Underneath the hood, Logitext interfaces with Coq in order to check
+        the validity of your proof steps.</p>
+        <p>To get started, type in something to prove:</p>
         <form>
           <textbox{#Goal}/><submit action={provingTrampoline} value="Prove"/>
         </form>
-        <p>Here are some examples:</p>
+        <p>The syntax is basically what you would expect, but here are some examples to get you started:</p>
         <ul>
           {tryProof "((A -> B) -> A) -> A"}
           {tryProof "A \/ ~A"}
           {tryProof "(forall x, P(x)) -> (exists x, P(x))"}
         </ul>
+        <p>Unfortunately, we don't currently support contraction/weakening rules,
+        so there may be some statements you cannot prove yet.</p>
+        </div>
       </body>
     </xml>
     end
