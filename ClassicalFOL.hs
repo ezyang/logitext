@@ -403,7 +403,7 @@ folStyle = emptyDef
                 , P.identLetter     = alphaNum <|> oneOf "_'"
                 -- Ops are sloppy, but should work OK for our use case.
                 , P.opStart         = P.opLetter folStyle
-                , P.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
+                , P.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~,"
                 , P.reservedOpNames =
                     ["(",")",".",",",
                     "->", "→",
@@ -426,6 +426,8 @@ reservedOp = P.reservedOp lexer
 integer    = P.integer lexer
 whiteSpace = P.whiteSpace lexer
 parens     = P.parens lexer
+comma      = P.comma lexer
+commaSep1  = P.commaSep1 lexer
 
 -- XXX names term versus expr
 -- Coq inspired BNF to support:
@@ -440,7 +442,6 @@ parens     = P.parens lexer
 --          identifier (universe , ... universe)
 --
 -- also Unicode supported, so that copypasta works
--- XXX but it doesn't work; something is getting lost in the translation
 
 table   = [ [prefix "~" Not, prefix "¬" Not ]
           , [binary "/\\" Conj AssocLeft, binary "∧" Conj AssocLeft ]
@@ -455,8 +456,9 @@ postfix name fun       = Postfix (do{ reservedOp name; return fun })
 expr    = buildExpressionParser table term
        <?> "expression"
 
--- XXX wrong
-universe = errorModule "universe not defined"
+universe =  try (parens universe)
+        <|> try (Fun <$> identifier <*> parens (commaSep1 universe))
+        <|> try (Var <$> identifier)
         <?> "universe"
 
 manyForall (b:bs) e = Forall b (manyForall bs e)
@@ -465,11 +467,11 @@ manyForall [] e = e
 manyExists (b:bs) e = Exists b (manyExists bs e)
 manyExists [] e = e
 
-term    =  parens expr
+term    =  try (parens expr)
        <|> try (Top <$ choice [reserved "True", reserved "⊤"])
        <|> try (Bot <$ choice [reserved "False", reserved "⊥"])
-       <|> try (manyForall <$ choice [reserved "forall", reserved "∀"] <*> many identifier <* choice [reserved ".", reserved ","] <*> expr)
-       <|> try (manyExists <$ choice [reserved "exists", reserved "∃"] <*> many identifier <* choice [reserved ".", reserved ","] <*> expr)
-       <|> try (Pred <$> identifier <*> parens (many universe))
+       <|> try (manyForall <$ choice [reserved "forall", reserved "∀"] <*> many identifier <* choice [reservedOp ".", reservedOp ","] <*> expr)
+       <|> try (manyExists <$ choice [reserved "exists", reserved "∃"] <*> many identifier <* choice [reservedOp ".", reservedOp ","] <*> expr)
+       <|> try (Pred <$> identifier <*> parens (commaSep1 universe))
        <|> try (Pred <$> identifier <*> return [])
        <?> "simple expression"
