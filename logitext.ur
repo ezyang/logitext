@@ -168,6 +168,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Bot    = fn _ => makePending (make [#LBot] i),
                     Forall = fn _ =>
                         r <- source "";
+                        (* XXX would be nice if the ctextbox automatically grabbed focus *)
                         set prompter <xml><div class={relMark}>
                             <div class={offsetBox}>
                               <ctextbox size=6 source={r}
@@ -178,7 +179,8 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                                         case u of
                                             | None => return ()
                                             | Some ju => makePending (make [#LForall] (i, (fromJson ju : universe), 0)))
-                                    else return ()} />
+                                    else return ()}
+                                onblur={set prompter <xml></xml>} />
                             </div>
                           </div></xml>,
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
