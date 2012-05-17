@@ -2,10 +2,8 @@ style proof
 style inference
 style tagBox
 style tag
-style upper
 style sibling
 style junct
-
 style viewport
 style commaList
 
@@ -53,7 +51,7 @@ fun renderLogic p ((Logic.Rec r) : logic) : xbody = match r
   {Pred = fn (f, xs) =>
     case xs of
       | Nil => <xml>{[f]}</xml>
-      | _ => <xml>{[f]}(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>,
+      | Cons _ => <xml>{[f]}(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>,
    Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic 3 a} ∧ {renderLogic 3 b}</xml>,
    Disj = fn (a, b) => renderParen (p>2) <xml>{renderLogic 2 a} ∨ {renderLogic 2 b}</xml>,
    Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic 2 a} → {renderLogic 1 b}</xml>,
@@ -66,8 +64,8 @@ fun renderLogic p ((Logic.Rec r) : logic) : xbody = match r
 type sequent = { Hyps : list logic, Cons : list logic }
 val json_sequent : json sequent = json_record {Hyps = "hyps", Cons = "cons"}
 
-(* our protocol kind of precludes incremental updates. It would be nice
-if Ur/Web did this for us. *)
+(* our protocol kind of precludes incremental updates or smooth
+redrawing. It would be nice if Ur/Web did this for us. *)
 
 con tactic a = variant [Cut = logic * a * a,
                         LExact = int,
@@ -127,6 +125,19 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , RWeaken    = fn _ => "(weaken:r)"
    }
 
+fun mapXiM [m ::: (Type -> Type)] (_ : monad m) [a] [ctx ::: {Unit}] (f : int -> a -> m (xml ctx [] [])) : list a -> m (xml ctx [] []) =
+    let
+        fun mapXiM' i ls =
+            case ls of
+                [] => return <xml/>
+              | x :: ls =>
+                this <- f i x;
+                rest <- mapXiM' (i+1) ls;
+                return <xml>{this}{rest}</xml>
+    in
+        mapXiM' 0
+    end
+
 structure Proof = Json.Recursive(struct
   con t a = variant [Goal = sequent,
                      Pending = sequent * tactic int,
@@ -139,78 +150,84 @@ structure Proof = Json.Recursive(struct
     end
 end)
 type proof = Proof.r
-fun renderSequent (h : proof -> transaction unit) (s : sequent) : xbody =
-    let fun makePending x = h (Proof.Rec (make [#Pending] (s, x)))
+fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xbody =
+    let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
     in
-    <xml><ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span class={junct} onclick={match x {
-            Pred   = fn _ => makePending (make [#LExact] i),
-            Conj   = fn _ => makePending (make [#LConj] (i, 0)),
-            Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
-            Imp    = fn _ => makePending (make [#LImp] (i, 0, 1)),
-            Not    = fn _ => makePending (make [#LNot] (i, 0)),
-            Top    = fn _ => return (),
-            Bot    = fn _ => makePending (make [#LBot] i),
-            Forall = fn _ => return (),
-            Exists = fn _ => makePending (make [#LExists] (i, 0))
-            }}>
-        {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps}
-    </ul>
-      ⊢
-    <ul class={commaList}>{List.mapXi (fn i (Logic.Rec x) =>
-      <xml><li><span class={junct} onclick={match x {
-            Pred   = fn _ => makePending (make [#RExact] i),
-            Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
-            Disj   = fn _ => makePending (make [#RDisj] (i, 0)),
-            Imp    = fn _ => makePending (make [#RImp] (i, 0)),
-            Not    = fn _ => makePending (make [#RNot] (i, 0)),
-            Top    = fn _ => makePending (make [#RTop] i),
-            Bot    = fn _ => return (),
-            Forall = fn _ => makePending (make [#RForall] (i, 0)),
-            Exists = fn _ => return ()
-            }}>
-        {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons}</ul>
-  </xml>
+    left <- mapXiM (fn i (Logic.Rec x) =>
+              return <xml><li><span class={junct} onclick={match x {
+                    Pred   = fn _ => makePending (make [#LExact] i),
+                    Conj   = fn _ => makePending (make [#LConj] (i, 0)),
+                    Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
+                    Imp    = fn _ => makePending (make [#LImp] (i, 0, 1)),
+                    Not    = fn _ => makePending (make [#LNot] (i, 0)),
+                    Top    = fn _ => return (),
+                    Bot    = fn _ => makePending (make [#LBot] i),
+                    Forall = fn _ => return (),
+                    Exists = fn _ => makePending (make [#LExists] (i, 0))
+                    }}>
+                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps;
+    right <- mapXiM (fn i (Logic.Rec x) =>
+              return <xml><li><span class={junct} onclick={match x {
+                    Pred   = fn _ => makePending (make [#RExact] i),
+                    Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
+                    Disj   = fn _ => makePending (make [#RDisj] (i, 0)),
+                    Imp    = fn _ => makePending (make [#RImp] (i, 0)),
+                    Not    = fn _ => makePending (make [#RNot] (i, 0)),
+                    Top    = fn _ => makePending (make [#RTop] i),
+                    Bot    = fn _ => return (),
+                    Forall = fn _ => makePending (make [#RForall] (i, 0)),
+                    Exists = fn _ => return ()
+                    }}>
+                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
+    return <xml><ul class={commaList}>{left}</ul> ⊢ <ul class={commaList}>{right}</ul></xml>
   end
-fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : xbody = match r
-  {Goal = fn s => 
+fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
+  {Goal = fn s =>
        (* XXX It would be neat if mouse over caused this to change, but a little difficult *)
-       <xml><table><tr><td>{renderSequent h s}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
-   Pending = fn (s, t) => <xml></xml>,
+       sequent <- renderSequent h s;
+       return <xml><table><tr><td>{sequent}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
+   Pending = fn (s, t) => return <xml></xml>,
    Proof = fn (s, t) =>
-       let fun render f t = <xml><div class={sibling}>{renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t}</div></xml>
-           fun empty (_ : int) = <xml></xml>
-       in <xml>
-          <div>{match t {
-            Cut       = fn (l, a, b) => join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
-            LExact    = empty,
-            LBot      = empty,
-            RExact    = empty,
-            RTop      = empty,
-            (* XXX could use some metaprogramming.  However, doing it the obvious
-               way runs into "Substitution in constructor is blocked by a too-deep unification variable";
-               if you add more type annotations, you then get "Can't unify record constructors"
-            *)
-            LConj     = fn (n, a) => render (fn x => make [#LConj]     (n, x)) a,
-            LNot      = fn (n, a) => render (fn x => make [#LNot]      (n, x)) a,
-            LExists   = fn (n, a) => render (fn x => make [#LExists]   (n, x)) a,
-            LContract = fn (n, a) => render (fn x => make [#LContract] (n, x)) a,
-            LWeaken   = fn (n, a) => render (fn x => make [#LWeaken]   (n, x)) a,
-            RDisj     = fn (n, a) => render (fn x => make [#RDisj]     (n, x)) a,
-            RImp      = fn (n, a) => render (fn x => make [#RImp]      (n, x)) a,
-            RNot      = fn (n, a) => render (fn x => make [#RNot]      (n, x)) a,
-            RForall   = fn (n, a) => render (fn x => make [#RForall]   (n, x)) a,
-            RContract = fn (n, a) => render (fn x => make [#RContract] (n, x)) a,
-            RWeaken   = fn (n, a) => render (fn x => make [#RWeaken]   (n, x)) a,
-            LForall   = fn (n, u, a) => render (fn x => make [#LForall] (n, u, x)) a,
-            RExists   = fn (n, u, a) => render (fn x => make [#RExists] (n, u, x)) a,
-            LDisj     = fn (n, a, b) => join (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
-            LImp      = fn (n, a, b) => join (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
-            RConj     = fn (n, a, b) => join (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
-        }}</div>
+       sequent <- renderSequent h s;
+       let fun render f t : transaction xbody =
+                sib <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
+                return <xml><div class={sibling}>{sib}</div></xml>
+           fun empty (_ : int) : transaction xbody = return <xml></xml>
+           (* should be 'liftM2 join' where liftM2 is a monad lib function *)
+           fun joinM m1 m2 = x1 <- m1; x2 <- m2; return (join x1 x2)
+       in
+       top <- match t {
+          Cut       = fn (l, a, b) => joinM (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
+          LExact    = empty,
+          LBot      = empty,
+          RExact    = empty,
+          RTop      = empty,
+          (* XXX could use some metaprogramming.  However, doing it the obvious
+             way runs into "Substitution in constructor is blocked by a too-deep unification variable";
+             if you add more type annotations, you then get "Can't unify record constructors"
+          *)
+          LConj     = fn (n, a) => render (fn x => make [#LConj]     (n, x)) a,
+          LNot      = fn (n, a) => render (fn x => make [#LNot]      (n, x)) a,
+          LExists   = fn (n, a) => render (fn x => make [#LExists]   (n, x)) a,
+          LContract = fn (n, a) => render (fn x => make [#LContract] (n, x)) a,
+          LWeaken   = fn (n, a) => render (fn x => make [#LWeaken]   (n, x)) a,
+          RDisj     = fn (n, a) => render (fn x => make [#RDisj]     (n, x)) a,
+          RImp      = fn (n, a) => render (fn x => make [#RImp]      (n, x)) a,
+          RNot      = fn (n, a) => render (fn x => make [#RNot]      (n, x)) a,
+          RForall   = fn (n, a) => render (fn x => make [#RForall]   (n, x)) a,
+          RContract = fn (n, a) => render (fn x => make [#RContract] (n, x)) a,
+          RWeaken   = fn (n, a) => render (fn x => make [#RWeaken]   (n, x)) a,
+          LForall   = fn (n, u, a) => render (fn x => make [#LForall] (n, u, x)) a,
+          RExists   = fn (n, u, a) => render (fn x => make [#RExists] (n, u, x)) a,
+          LDisj     = fn (n, a, b) => joinM (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
+          LImp      = fn (n, a, b) => joinM (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
+          RConj     = fn (n, a, b) => joinM (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
+       };
+       return <xml>
+        <div>{top}</div>
         <table>
           <tr>
-            <td class={inference}>{renderSequent h s}</td>
+            <td class={inference}>{sequent}</td>
             <td class={tagBox}>
                 <div class={tag}>{[tacticRenderName t]}</div>
             </td>
@@ -228,7 +245,7 @@ fun proving goal =
   v <- source <xml></xml>;
   let fun handler x = z <- rpc (zapRefine x); case z of
         | None => return ()
-        | Some r => set v (renderProof handler (fromJson r : proof))
+        | Some r => bind (renderProof handler (fromJson r : proof)) (set v)
   in
   return <xml>
         <head>
@@ -239,7 +256,7 @@ fun proving goal =
           x <- rpc (zapStart goal);
           case x of
               | None => return ()
-              | Some r => set v (renderProof handler (fromJson r : proof))
+              | Some r => bind (renderProof handler (fromJson r : proof)) (set v)
         }>
           <p><a link={main ()}>Try something else...</a></p>
           <div class={proof}>
@@ -250,7 +267,7 @@ fun proving goal =
   end
   (*
   seqid <- fresh;
-        <body onload={set v (renderProof handler pf); Js.infinitedrag seqid <xml><dyn signal={signal v}/></xml>}>
+        <body onload={bind (renderProof handler pf) (set v); Js.infinitedrag seqid <xml><dyn signal={signal v}/></xml>}>
           <div class={viewport}>
             <div id={seqid} class={proof}>&nbsp;</div>
           </div>
