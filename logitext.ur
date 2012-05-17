@@ -77,6 +77,7 @@ con tactic a = variant [Cut = logic * a * a,
                         LDisj = int * a * a,
                         LImp = int * a * a,
                         LBot = int,
+                        LTop = int * a,
                         LNot = int * a,
                         LForall = int * universe * a,
                         LExists = int * a,
@@ -87,6 +88,7 @@ con tactic a = variant [Cut = logic * a * a,
                         RDisj = int * a,
                         RImp = int * a,
                         RTop = int,
+                        RBot = int * a,
                         RNot = int * a,
                         RForall = int * a,
                         RExists = int * universe * a,
@@ -98,9 +100,9 @@ fun json_tactic [a] (_ : json a) : json (tactic a) =
       val json_double : json (int * a * a) = json_record ("1", "2", "3")
       val json_instance : json (int * universe * a) = json_record ("1", "2", "3")
   in json_variant {Cut = "Cut", LExact = "LExact", LConj = "LConj", LDisj = "LDisj",
-        LImp = "LImp", LBot = "LBot", LNot = "LNot", LForall = "LForall", LExists = "LExists",
+        LImp = "LImp", LBot = "LBot", LTop = "LTop", LNot = "LNot", LForall = "LForall", LExists = "LExists",
         LContract = "LContract", LWeaken = "LWeaken", RExact = "RExact", RConj = "RConj", RDisj = "RDisj",
-        RImp = "RImp", RTop = "RTop", RNot = "RNot", RForall = "RForall", RExists = "RExists",
+        RImp = "RImp", RTop = "RTop", RBot = "RBot", RNot = "RNot", RForall = "RForall", RExists = "RExists",
         RWeaken = "Rweaken", RContract = "RContract"}
   end
 
@@ -112,6 +114,7 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , LDisj      = fn _ => "(∨l)"
    , LImp       = fn _ => "(→l)"
    , LBot       = fn _ => ""
+   , LTop       = fn _ => ""
    , LNot       = fn _ => "(¬l)"
    , LForall    = fn _ => "(∀l)"
    , LExists    = fn _ => "(∃l)"
@@ -122,6 +125,7 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , RDisj      = fn _ => "(∨r)"
    , RImp       = fn _ => "(→r)"
    , RTop       = fn _ => ""
+   , RBot       = fn _ => ""
    , RNot       = fn _ => "(¬r)"
    , RForall    = fn _ => "(∀r)"
    , RExists    = fn _ => "(∃r)"
@@ -188,7 +192,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
                     Imp    = fn _ => makePending (make [#LImp] (i, 0, 1)),
                     Not    = fn _ => makePending (make [#LNot] (i, 0)),
-                    Top    = fn _ => return (),
+                    Top    = fn _ => makePending (make [#LTop] (i, 0)),
                     Bot    = fn _ => makePending (make [#LBot] i),
                     Forall = fn _ => makePendingU prompter (fn u => make [#LForall] (i, u, 0)),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
@@ -203,7 +207,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Imp    = fn _ => makePending (make [#RImp] (i, 0)),
                     Not    = fn _ => makePending (make [#RNot] (i, 0)),
                     Top    = fn _ => makePending (make [#RTop] i),
-                    Bot    = fn _ => return (),
+                    Bot    = fn _ => makePending (make [#RBot] (i, 0)),
                     Forall = fn _ => makePending (make [#RForall] (i, 0)),
                     Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)),
                     }}>
@@ -238,9 +242,11 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
           LExists   = fn (n, a) => render (fn x => make [#LExists]   (n, x)) a,
           LContract = fn (n, a) => render (fn x => make [#LContract] (n, x)) a,
           LWeaken   = fn (n, a) => render (fn x => make [#LWeaken]   (n, x)) a,
+          LTop      = fn (n, a) => render (fn x => make [#LTop]      (n, x)) a,
           RDisj     = fn (n, a) => render (fn x => make [#RDisj]     (n, x)) a,
           RImp      = fn (n, a) => render (fn x => make [#RImp]      (n, x)) a,
           RNot      = fn (n, a) => render (fn x => make [#RNot]      (n, x)) a,
+          RBot      = fn (n, a) => render (fn x => make [#RBot]      (n, x)) a,
           RForall   = fn (n, a) => render (fn x => make [#RForall]   (n, x)) a,
           RContract = fn (n, a) => render (fn x => make [#RContract] (n, x)) a,
           RWeaken   = fn (n, a) => render (fn x => make [#RWeaken]   (n, x)) a,

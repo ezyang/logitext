@@ -141,6 +141,7 @@ data Q a = Cut L a a
          | LDisj Int a a
          | LImp Int a a
          | LBot Int
+         | LTop Int a
          | LNot Int a
          | LForall Int U a
          | LExists Int a
@@ -150,6 +151,7 @@ data Q a = Cut L a a
          | RConj Int a a
          | RDisj Int a
          | RImp Int a
+         | RBot Int a
          | RTop Int
          | RNot Int a
          | RForall Int a
@@ -173,6 +175,7 @@ preorder fp fq a = tp a
     tq q@(LDisj n x y)  = LDisj n <$ fq q <*> tp x <*> tp y
     tq q@(LImp n x y)   = LImp n <$ fq q <*> tp x <*> tp y
     tq q@(LBot n)       = LBot n <$ fq q
+    tq q@(LTop n x)     = LTop n <$ fq q <*> tp x
     tq q@(LNot n x)     = LNot n <$ fq q <*> tp x
     tq q@(LForall n v x) = LForall n v <$ fq q <*> tp x
     tq q@(LExists n x)  = LExists n <$ fq q <*> tp x
@@ -182,6 +185,7 @@ preorder fp fq a = tp a
     tq q@(RConj n x y)  = RConj n <$ fq q <*> tp x <*> tp y
     tq q@(RDisj n x)    = RDisj n <$ fq q <*> tp x
     tq q@(RImp n x)     = RImp n <$ fq q <*> tp x
+    tq q@(RBot n x)     = RBot n <$ fq q <*> tp x
     tq q@(RTop n)       = RTop n <$ fq q
     tq q@(RNot n x)     = RNot n <$ fq q <*> tp x
     tq q@(RForall n x)  = RForall n <$ fq q <*> tp x
@@ -204,6 +208,7 @@ qToTac (LConj n _) = Tac "lConj" [hyp n]
 qToTac (LDisj n _ _) = Tac "lDisj" [hyp n]
 qToTac (LImp n _ _) = Tac "lImp" [hyp n]
 qToTac (LBot n) = Tac "lBot" [hyp n]
+qToTac (LTop n _) = Tac "lTop" [hyp n]
 qToTac (LNot n _) = Tac "lNot" [hyp n]
 qToTac (LForall n v _) = Tac "lForall" [hyp n, C.render (toCoq v)]
 qToTac (LExists n _) = Tac "lExists" [hyp n]
@@ -214,6 +219,7 @@ qToTac (RConj n _ _) = Tac "rConj" [con n]
 qToTac (RDisj n _) = Tac "rDisj" [con n]
 qToTac (RImp n _) = Tac "rImp" [con n]
 qToTac (RTop n) = Tac "rTop" [con n]
+qToTac (RBot n _) = Tac "rBot" [con n]
 qToTac (RNot n _) = Tac "rNot" [con n]
 qToTac (RForall n _) = Tac "rForall" [con n]
 qToTac (RExists n v _) = Tac "rExists" [con n, C.render (toCoq v)]
@@ -340,6 +346,7 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
                 qNum LDisj{} = 2
                 qNum LImp{} = 2
                 qNum LBot{} = 0
+                qNum LTop{} = 1
                 qNum LNot{} = 1
                 qNum LForall{} = 1
                 qNum LExists{} = 1
@@ -350,6 +357,7 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
                 qNum RDisj{} = 1
                 qNum RImp{} = 1
                 qNum RTop{} = 0
+                qNum RBot{} = 1
                 qNum RNot{} = 1
                 qNum RForall{} = 1
                 qNum RExists{} = 1

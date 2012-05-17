@@ -142,6 +142,10 @@ Ltac lBot H :=
   solve [match type of H with Hyp False =>
     unwrap H; destruct H
   end].
+Ltac lTop H := (* equivalent to weakening *)
+  match type of H with Hyp True =>
+    unwrap H; destruct H
+  end; canonicalize.
 Ltac lNot H :=
   match type of H with Hyp (~ ?P) =>
     unwrap H; dropNeg H
@@ -184,6 +188,10 @@ Ltac negNot H :=
   match type of H with Hyp (~ (~ _)) =>
     unwrap H; apply NNPP in H; dropPos H
   end.
+Ltac negBot H :=
+  match type of H with Hyp (~ False) =>
+    unwrap H; clear H (* destruct does too much work *)
+  end.
 Ltac negTop H :=
   solve [match type of H with Hyp (~ True) =>
     unwrap H; contradict H; constructor
@@ -208,6 +216,7 @@ Ltac rConj H := rWrap negConj H.
 Ltac rDisj H := rWrap negDisj H.
 Ltac rImp H := rWrap negImp H.
 Ltac rTop H := posneg; negTop H.
+Ltac rBot H := rWrap negBot H.
 Ltac rNot H := rWrap negNot H.
 Ltac rForall H := rWrap negForall H.
 Ltac rExists H t := posneg; negExists H t; negpos.
@@ -223,6 +232,12 @@ Variables A B C : Prop. (* some convenient things to instantiate with *)
 Variables P Q R : U -> Prop.
 
 Set Printing All.
+
+Goal denote ( [True] |= [False] ).
+  sequent.
+    rBot Con0.
+    lTop Hyp0.
+Abort.
 
 (* an example *)
 Goal denote ( [ True; C /\ C; (~ True) \/ True ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).
