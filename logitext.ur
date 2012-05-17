@@ -142,6 +142,11 @@ fun mapXiM [m ::: (Type -> Type)] (_ : monad m) [a] [ctx ::: {Unit}] (f : int ->
         mapXiM' 0
     end
 
+fun liftM2 [m ::: (Type -> Type)] (_ : monad m) [a] [b] [c] (f : a -> b -> c) (mx : m a) (my : m b) : m c =
+    x <- mx;
+    y <- my;
+    return (f x y)
+
 structure Proof = Json.Recursive(struct
   con t a = variant [Goal = sequent,
                      Pending = sequent * tactic int,
@@ -217,11 +222,9 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
                 sib <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
            fun empty (_ : int) : transaction xbody = return <xml></xml>
-           (* should be 'liftM2 join' where liftM2 is a monad lib function *)
-           fun joinM m1 m2 = x1 <- m1; x2 <- m2; return (join x1 x2)
        in
        top <- match t {
-          Cut       = fn (l, a, b) => joinM (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
+          Cut       = fn (l, a, b) => liftM2 join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
           LExact    = empty,
           LBot      = empty,
           RExact    = empty,
@@ -243,9 +246,9 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
           RWeaken   = fn (n, a) => render (fn x => make [#RWeaken]   (n, x)) a,
           LForall   = fn (n, u, a) => render (fn x => make [#LForall] (n, u, x)) a,
           RExists   = fn (n, u, a) => render (fn x => make [#RExists] (n, u, x)) a,
-          LDisj     = fn (n, a, b) => joinM (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
-          LImp      = fn (n, a, b) => joinM (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
-          RConj     = fn (n, a, b) => joinM (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
+          LDisj     = fn (n, a, b) => liftM2 join (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
+          LImp      = fn (n, a, b) => liftM2 join (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
+          RConj     = fn (n, a, b) => liftM2 join (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
        };
        return <xml>
         <div>{top}</div>
