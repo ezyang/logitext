@@ -54,6 +54,7 @@ identifier = P.identifier lexer
 reservedOp = P.reservedOp lexer
 integer    = P.integer lexer
 whiteSpace = P.whiteSpace lexer
+parens     = P.parens lexer
 
 -- http://coq.inria.fr/doc/Reference-Manual003.html
 
@@ -158,10 +159,10 @@ operconstr100 = try (Typed <$> operconstr10 <* reservedOp ":" <*> binder_constr)
             <|> operconstr10
 operconstr10 = try (App <$> operconstr0 <*> many1 appl_arg)
           -- XXX dropping the @ cuz we're lazy
-           <|> try (reservedOp "@" >> App <$> global <*> many operconstr0)
+           <|> try (reservedOp "@" >> App <$> operconstr0 <*> many operconstr0)
            <|> operconstr0
 operconstr0 = try atomic_constr
-          <|> reservedOp "(" *> operconstr200 <* reservedOp ")"
+          <|> parens operconstr200
 
 -- lconstr: operconstr.200
 lconstr :: P Term
@@ -172,7 +173,8 @@ lconstr = operconstr200
 --  "@" global
 constr :: P Term
 constr = try operconstr0
-     <|> (reservedOp "@" >> Atom . ('@':) <$> identifier)
+     -- XXX dropped @ here too
+     <|> (reservedOp "@" >> Atom <$> identifier)
 
 -- binder_constr:
 --  "forall" open_binders "," operconstr.200

@@ -98,7 +98,7 @@ fun json_tactic [a] (_ : json a) : json (tactic a) =
   in json_variant {Cut = "Cut", LExact = "LExact", LConj = "LConj", LDisj = "LDisj",
         LImp = "LImp", LBot = "LBot", LNot = "LNot", LForall = "LForall", LExists = "LExists",
         LContract = "LContract", LWeaken = "LWeaken", RExact = "RExact", RConj = "RConj", RDisj = "RDisj",
-        RImp = "RImp", RTop = "RTop", RNot = "RNot", RForall = "RForall", RExists = "Rexists",
+        RImp = "RImp", RTop = "RTop", RNot = "RNot", RForall = "RForall", RExists = "RExists",
         RWeaken = "Rweaken", RContract = "RContract"}
   end
 
@@ -154,6 +154,23 @@ end)
 type proof = Proof.r
 fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
+        fun makePendingU prompter (f : universe -> tactic int) : transaction unit =
+                r <- source "";
+                (* XXX would be nice if the ctextbox automatically grabbed focus *)
+                set prompter <xml><div class={relMark}>
+                    <div class={offsetBox}>
+                      <ctextbox size=6 source={r}
+                        onkeyup={fn k => if eq k 13
+                            then (
+                                rawu <- get r;
+                                u <- rpc (zapParseUniverse rawu);
+                                case u of
+                                    | None => return ()
+                                    | Some ju => makePending (f (fromJson ju : universe)))
+                            else return ()}
+                        onblur={set prompter <xml></xml>} />
+                    </div>
+                  </div></xml>
     in
     left <- mapXiM (fn i (Logic.Rec x) =>
               (* XXX suboptimal; only want to allocate prompter when necessary *)
@@ -166,27 +183,12 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Not    = fn _ => makePending (make [#LNot] (i, 0)),
                     Top    = fn _ => return (),
                     Bot    = fn _ => makePending (make [#LBot] i),
-                    Forall = fn _ =>
-                        r <- source "";
-                        (* XXX would be nice if the ctextbox automatically grabbed focus *)
-                        set prompter <xml><div class={relMark}>
-                            <div class={offsetBox}>
-                              <ctextbox size=6 source={r}
-                                onkeyup={fn k => if eq k 13
-                                    then (
-                                        rawu <- get r;
-                                        u <- rpc (zapParseUniverse rawu);
-                                        case u of
-                                            | None => return ()
-                                            | Some ju => makePending (make [#LForall] (i, (fromJson ju : universe), 0)))
-                                    else return ()}
-                                onblur={set prompter <xml></xml>} />
-                            </div>
-                          </div></xml>,
+                    Forall = fn _ => makePendingU prompter (fn u => make [#LForall] (i, u, 0)),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }}>
                 {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Hyps;
     right <- mapXiM (fn i (Logic.Rec x) =>
+              prompter <- source <xml></xml>;
               return <xml><li><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#RExact] i),
                     Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
@@ -196,9 +198,9 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Top    = fn _ => makePending (make [#RTop] i),
                     Bot    = fn _ => return (),
                     Forall = fn _ => makePending (make [#RForall] (i, 0)),
-                    Exists = fn _ => return ()
+                    Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)),
                     }}>
-                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
+                {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Cons;
     return <xml><ul class={commaList}>{left}</ul> ⊢ <ul class={commaList}>{right}</ul></xml>
   end
 fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
@@ -206,7 +208,7 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
        (* XXX It would be neat if mouse over caused this to change, but a little difficult *)
        sequent <- renderSequent h s;
        return <xml><table><tr><td>{sequent}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
-   Pending = fn (s, t) => return <xml></xml>,
+   Pending = fn (s, t) => return <xml>...</xml>,
    Proof = fn (s, t) =>
        sequent <- renderSequent h s;
        top <- match t {
@@ -341,6 +343,7 @@ and main () =
         <ul>
           {tryProof "((A -> B) -> A) -> A"}
           {tryProof "A \/ ~A"}
+          {tryProof "(forall x, P(x)) -> (exists x, P(x))"}
         </ul>
       </body>
     </xml>

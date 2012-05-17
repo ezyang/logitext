@@ -58,7 +58,7 @@ instance CoqTerm U where
     toCoq (Fun f xs) = C.App (C.Atom f) (map toCoq xs)
     fromCoq (C.Atom n) = Fun n []
     fromCoq (C.App (C.Atom n) us) = Fun n (map fromCoq us)
-    fromCoq _ = errorModule "U.fromCoq"
+    fromCoq x = errorModule ("U.fromCoq: " ++ show x)
 
 data L = Pred PredV [U] -- could be (Pred "A" [])
        | Conj L L
@@ -90,8 +90,8 @@ instance CoqTerm L where
         f (C.Forall _ _) = errorModule "L.fromCoq Forall"
         f (C.Fun _ _) = errorModule "L.fromCoq Fun"
         f (C.Typed t _) = f t
-        f (C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f t)
-        f (C.App (C.Atom "@ex") _) = errorModule "L.fromCoq App ex"
+        f (C.App (C.Atom "ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f t)
+        f (C.App (C.Atom "ex") _) = errorModule "L.fromCoq App ex"
         f (C.App (C.Atom "and") [t1, t2]) = Conj (f t1) (f t2)
         f (C.App (C.Atom "and") _) = errorModule "L.fromCoq App and"
         f (C.App (C.Atom "or") [t1, t2]) = Disj (f t1) (f t2)
@@ -227,7 +227,7 @@ qToTac (RContract n _) = Tac "rContract" [con n]
 -- using error, not fail!  fail will have the wrong semantics
 -- when we're using Maybe
 maybeError s m = maybe (errorModule s) return m
-eitherError = either (errorModule . show) return
+eitherError s = either (\x -> errorModule (s ++ show x)) return
 
 -- NOTE Tactic failure may be from a built in (i.e. no clauses for
 -- match) or from an explicit fail, which can have a string resulting
@@ -262,7 +262,8 @@ parseResponse raw = do
         <$> maybeError "parseResponse: no hyps found" (findChild (qn "hyps") resp)
     result <- strContent <$> maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
     -- trace result $ return ()
-    goal <- eitherError (C.parseTerm result)
+    goal <- eitherError "parseResponse: parseTerm " (C.parseTerm result)
+    -- trace (show goal) $ return ()
     return (S (map fromCoq hypList) (listifyDisj (fromCoq goal)))
 
 data UpdateFailure = UpdateFailure
@@ -293,11 +294,11 @@ theCoq = unsafePerformIO $ do
 start :: String -> IO P
 start g = do
     -- hPutStrLn stderr g
-    goal <- eitherError $ parse (whiteSpace >> expr <* eof) "" g
+    goal <- eitherError "start: " $ parse (whiteSpace >> expr <* eof) "" g
     return (Goal (S [] [goal]))
 
 parseUniverse :: String -> IO U
-parseUniverse g = eitherError $ parse (whiteSpace >> universe <* eof) "" g
+parseUniverse g = eitherError "parseUniverse: " $ parse (whiteSpace >> universe <* eof) "" g
 
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
@@ -382,10 +383,9 @@ refineString :: Lazy.ByteString -> IO (Maybe Lazy.ByteString)
 refineString s =
     case L.parse json' s of
         L.Done _ v -> case fromJSON v of
-            -- XXX refine errors should be turned into nothing
             Success a -> Just . E.encode . toJSON <$> refine a
-            _ -> return Nothing
-        _ -> return Nothing
+            _ -> errorModule "refineString: failed to decode JSON"
+        _ -> errorModule "refineString: failed to parse JSON"
 
 
 -- Parsing
