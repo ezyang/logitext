@@ -405,7 +405,7 @@ folStyle = emptyDef
                 , P.opStart         = P.opLetter folStyle
                 , P.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
                 , P.reservedOpNames =
-                    ["(",")",".",
+                    ["(",")",".",",",
                     "->", "→",
                     "/\\","∧",
                     "\\/","∨",
@@ -413,7 +413,7 @@ folStyle = emptyDef
                     "~","¬"]
                 , P.reservedNames   =
                     [
-                    "exists","forall","fun","True","False","⊤","⊥"
+                    "exists","forall","∀","∃","fun","True","False","⊤","⊥"
                     ]
                 , P.caseSensitive   = True
                 }
@@ -459,10 +459,17 @@ expr    = buildExpressionParser table term
 universe = errorModule "universe not defined"
         <?> "universe"
 
--- XXX handle quantifiers
+manyForall (b:bs) e = Forall b (manyForall bs e)
+manyForall [] e = e
+
+manyExists (b:bs) e = Exists b (manyExists bs e)
+manyExists [] e = e
+
 term    =  parens expr
-       <|> try (choice [reserved "True", reserved "⊤"] >> return Top)
-       <|> try (choice [reserved "False", reserved "⊥"] >> return Bot)
+       <|> try (Top <$ choice [reserved "True", reserved "⊤"])
+       <|> try (Bot <$ choice [reserved "False", reserved "⊥"])
+       <|> try (manyForall <$ choice [reserved "forall", reserved "∀"] <*> many identifier <* choice [reserved ".", reserved ","] <*> expr)
+       <|> try (manyExists <$ choice [reserved "exists", reserved "∃"] <*> many identifier <* choice [reserved ".", reserved ","] <*> expr)
        <|> try (Pred <$> identifier <*> parens (many universe))
        <|> try (Pred <$> identifier <*> return [])
        <?> "simple expression"
