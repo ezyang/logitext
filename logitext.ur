@@ -226,6 +226,12 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
                 sib <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
            fun empty (_ : int) : transaction xbody = return <xml></xml>
+           (* explicit signatures here to avoid "too-deep unification variable" problems *)
+           fun single f (n : int, a : proof) : transaction xbody = render (fn x => f (n, x)) a
+           fun singleQ f (n : int, u : universe, a : proof) : transaction xbody =
+                render (fn x => f (n, u, x)) a
+           fun double f (n : int, a : proof, b : proof) : transaction xbody =
+                liftM2 join (render (fn x => f (n, x, b)) a) (render (fn x => f (n, a, x)) b)
        in
        top <- match t {
           Cut       = fn (l, a, b) => liftM2 join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
@@ -233,28 +239,24 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
           LBot      = empty,
           RExact    = empty,
           RTop      = empty,
-          (* XXX could use some metaprogramming.  However, doing it the obvious
-             way runs into "Substitution in constructor is blocked by a too-deep unification variable";
-             if you add more type annotations, you then get "Can't unify record constructors"
-          *)
-          LConj     = fn (n, a) => render (fn x => make [#LConj]     (n, x)) a,
-          LNot      = fn (n, a) => render (fn x => make [#LNot]      (n, x)) a,
-          LExists   = fn (n, a) => render (fn x => make [#LExists]   (n, x)) a,
-          LContract = fn (n, a) => render (fn x => make [#LContract] (n, x)) a,
-          LWeaken   = fn (n, a) => render (fn x => make [#LWeaken]   (n, x)) a,
-          LTop      = fn (n, a) => render (fn x => make [#LTop]      (n, x)) a,
-          RDisj     = fn (n, a) => render (fn x => make [#RDisj]     (n, x)) a,
-          RImp      = fn (n, a) => render (fn x => make [#RImp]      (n, x)) a,
-          RNot      = fn (n, a) => render (fn x => make [#RNot]      (n, x)) a,
-          RBot      = fn (n, a) => render (fn x => make [#RBot]      (n, x)) a,
-          RForall   = fn (n, a) => render (fn x => make [#RForall]   (n, x)) a,
-          RContract = fn (n, a) => render (fn x => make [#RContract] (n, x)) a,
-          RWeaken   = fn (n, a) => render (fn x => make [#RWeaken]   (n, x)) a,
-          LForall   = fn (n, u, a) => render (fn x => make [#LForall] (n, u, x)) a,
-          RExists   = fn (n, u, a) => render (fn x => make [#RExists] (n, u, x)) a,
-          LDisj     = fn (n, a, b) => liftM2 join (render (fn x => make [#LDisj] (n, x, b)) a) (render (fn x => make [#LDisj] (n, a, x)) b),
-          LImp      = fn (n, a, b) => liftM2 join (render (fn x => make [#LImp]  (n, x, b)) a) (render (fn x => make [#LImp]  (n, a, x)) b),
-          RConj     = fn (n, a, b) => liftM2 join (render (fn x => make [#RConj] (n, x, b)) a) (render (fn x => make [#RConj] (n, a, x)) b),
+          LConj     = single (make [#LConj]),
+          LNot      = single (make [#LNot]),
+          LExists   = single (make [#LExists]),
+          LContract = single (make [#LContract]),
+          LWeaken   = single (make [#LWeaken]),
+          LTop      = single (make [#LTop]),
+          RDisj     = single (make [#RDisj]),
+          RImp      = single (make [#RImp]),
+          RNot      = single (make [#RNot]),
+          RBot      = single (make [#RBot]),
+          RForall   = single (make [#RForall]),
+          RContract = single (make [#RContract]),
+          RWeaken   = single (make [#RWeaken]),
+          LForall   = singleQ (make [#LForall]),
+          RExists   = singleQ (make [#RExists]),
+          LDisj     = double (make [#LDisj]),
+          LImp      = double (make [#LImp]),
+          RConj     = double (make [#RConj])
        };
        return <xml>
         <div>{top}</div>
