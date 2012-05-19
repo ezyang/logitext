@@ -8,7 +8,7 @@
 .proof table { width:100%; border-collapse:collapse; margin: auto; }
 .proof td { padding:0; border:0; margin:0; text-align:center; }
 .proof .sibling { display: inline-block; vertical-align:bottom; }
-.proof .tagBox { font-size: 0.8em; color: #666; vertical-align: top; width: 2.1em; padding-left:0.3em; }
+.proof .tagBox { font-size: 0.8em; color: #666; vertical-align: top; width: 2.1em; padding-left:0.3em; padding-right:0.6em; }
 .proof .tagBox .tag { position:relative; top:-0.7em;}
 .proof .inference { border-top: 1px solid #000; }
 .proof .junct:hover { background: #DDF; cursor:pointer; }
