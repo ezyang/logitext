@@ -31,6 +31,7 @@ coqtopProcess theory err = CreateProcess
     , std_out = CreatePipe
     , std_err = UseHandle err
     , close_fds = False
+    , create_group = False
     }
 
 onlyOnce :: IO () -> IO (IO ())

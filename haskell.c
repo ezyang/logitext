@@ -16,7 +16,10 @@ uw_Basis_string uw_Haskell_parseUniverse(uw_context ctx, uw_Basis_string i) {
 }
 
 uw_Basis_unit uw_Haskell_init(uw_context ctx) {
-    hs_init(NULL, NULL);
+    int my_argc = 1;
+    char *my_argv[] = { "<unknown>", NULL };
+    char **my_argv2 = (char**)my_argv; // silly types...
+    hs_init(&my_argc, &my_argv2);
     // XXX big ugly hack.  If you remove it the event manager crashes
     // for some odd reason
     ensureIOManagerIsRunning();

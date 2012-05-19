@@ -10,9 +10,10 @@ import qualified Data.ByteString.Lazy as L
 import Foreign.Marshal.Utils
 import Foreign
 import Foreign.C.String
-import Foreign.C.UTF8 -- XXX Ughh, why is this in Takusen
 import Control.Exception
+import Control.Monad
 import System.IO
+import qualified Data.ByteString.UTF8 as U
 import GHC.Conc
 
 data UrwebContext
@@ -20,24 +21,22 @@ data UrwebContext
 catchToNull m =
     m `catch` (\(e :: SomeException) -> hPutStrLn stderr (show e) >> return nullPtr)
 
+-- incoming string doesn't have to be Haskell managed
+-- outgoing string is on Urweb allocated memory, and
+-- is the unique outgoing one
+wrapper f = \ctx cs -> catchToNull (peekUTF8String cs >>= startString >>= lazyByteStringToUrWebCString ctx)
+
 initFFI :: IO ()
 initFFI = evaluate theCoq >> return ()
 
 startFFI :: Ptr UrwebContext -> CString -> IO CString
-startFFI ctx cs = catchToNull $ do
-    s <- peekUTF8String cs
-    r <- startString s
-    lazyByteStringToUrWebCString ctx r
+startFFI = wrapper startString
 
 parseUniverseFFI :: Ptr UrwebContext -> CString -> IO CString
-parseUniverseFFI ctx cs = catchToNull $ do
-    s <- peekUTF8String cs
-    r <- parseUniverseString s
-    lazyByteStringToUrWebCString ctx r
+parseUniverseFFI = wrapper parseUniverseString
 
--- incoming string doesn't have to be Haskell managed
--- outgoing string is on Urweb allocated memory, and
--- is the unique outgoing one
+peekUTF8String = liftM U.toString . S.packCString
+
 refineFFI :: Ptr UrwebContext -> CString -> IO CString
 refineFFI ctx s = catchToNull $ do
     -- bs must not escape from this function

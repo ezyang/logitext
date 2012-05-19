@@ -52,7 +52,7 @@ Library
                        split >= 0.1,
                        xml >= 1.3,
                        base >= 3,
-                       process >= 1.0,
+                       process >= 1.1,
                        bytestring >= 0.9,
                        transformers >= 0.2,
                        parsec >= 3.1,
@@ -64,7 +64,7 @@ Library
                        text >= 0.11,
                        syb >= 0.3,
                        mtl >= 2.0,
-                       Takusen >= 0.8
+                       utf8-string >= 0.3
   
   -- Modules not exported by this package.
   -- Other-modules:       
