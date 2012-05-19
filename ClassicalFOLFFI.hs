@@ -15,16 +15,28 @@ import Control.Monad
 import System.IO
 import qualified Data.ByteString.UTF8 as U
 import GHC.Conc
+import qualified Data.Aeson.Encode as E
+
+import JSONGeneric
 
 data UrwebContext
 
-catchToNull m =
-    m `catch` (\(e :: SomeException) -> hPutStrLn stderr (show e) >> return nullPtr)
+-- here's how you parse this: first, you try parsing using
+-- the expected result type.  If that doesn't work, try parsing
+-- using EndUserFailure.  And then finally, parse as string.
+-- XXX this doesn't work if we have something that legitimately
+-- needs to return a string, although we can force fix that
+-- by adding a wrapper...
+catchToErr ctx m =
+    m `catches`
+        [ Handler (\(e :: EndUserFailure) -> lazyByteStringToUrWebCString ctx (E.encode (toJSON e)))
+        , Handler (\(e :: SomeException) -> lazyByteStringToUrWebCString ctx (E.encode (toJSON (show e))))
+        ]
 
 -- incoming string doesn't have to be Haskell managed
 -- outgoing string is on Urweb allocated memory, and
 -- is the unique outgoing one
-wrapper f = \ctx cs -> catchToNull (peekUTF8String cs >>= startString >>= lazyByteStringToUrWebCString ctx)
+wrapper f = \ctx cs -> catchToErr ctx (peekUTF8String cs >>= startString >>= lazyByteStringToUrWebCString ctx)
 
 initFFI :: IO ()
 initFFI = evaluate theCoq >> return ()
@@ -38,7 +50,7 @@ parseUniverseFFI = wrapper parseUniverseString
 peekUTF8String = liftM U.toString . S.packCString
 
 refineFFI :: Ptr UrwebContext -> CString -> IO CString
-refineFFI ctx s = catchToNull $ do
+refineFFI ctx s = catchToErr ctx $ do
     -- bs must not escape from this function
     bs <- S.packCString s
     r <- refineString (L.fromChunks [bs])

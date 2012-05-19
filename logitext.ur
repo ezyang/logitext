@@ -26,7 +26,7 @@ fun renderUniverse ((Universe.Rec (f,xs)) : universe) : xbody =
     | Cons _ => <xml>(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>
     | Nil => <xml></xml>
     }</xml>
-fun zapParseUniverse x : transaction (option string) = return (Haskell.parseUniverse x)
+fun zapParseUniverse x : transaction string = return (Haskell.parseUniverse x)
 
 structure Logic = Json.Recursive(struct
   con t a = variant [Pred = string * list universe,
@@ -133,6 +133,9 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , RWeaken    = fn _ => "(weaken:r)"
    }
 
+con end_user_failure = variant [UpdateFailure = unit, ParseFailure = unit]
+val json_end_user_failure : json end_user_failure = json_variant {UpdateFailure = "UpdateFailure", ParseFailure = "ParseFailure"}
+
 fun mapXiM [m ::: (Type -> Type)] (_ : monad m) [a] [ctx ::: {Unit}] (f : int -> a -> m (xml ctx [] [])) : list a -> m (xml ctx [] []) =
     let
         fun mapXiM' i ls =
@@ -175,9 +178,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                             then (
                                 rawu <- get r;
                                 u <- rpc (zapParseUniverse rawu);
-                                case u of
-                                    | None => return ()
-                                    | Some ju => makePending (f (fromJson ju : universe)))
+                                makePending (f (fromJson u : universe)))
                             else return ()}
                         onblur={set prompter <xml></xml>} />
                     </div>
@@ -271,16 +272,14 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
        end
     }
 
-fun zapRefine (x : proof) : transaction (option string)  = return (Haskell.refine (toJson x))
-fun zapStart x : transaction (option string) = return (Haskell.start x)
+fun zapRefine (x : proof) : transaction string  = return (Haskell.refine (toJson x))
+fun zapStart x : transaction string = return (Haskell.start x)
 
 val head = <xml><link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" /></xml>
 
 fun proving goal =
   v <- source <xml></xml>;
-  let fun handler x = z <- rpc (zapRefine x); case z of
-        | None => return ()
-        | Some r => bind (renderProof handler (fromJson r : proof)) (set v)
+  let fun handler x = z <- rpc (zapRefine x); bind (renderProof handler (fromJson z : proof)) (set v)
   in
   return <xml>
         <head>
@@ -289,9 +288,7 @@ fun proving goal =
         </head>
         <body onload={
           x <- rpc (zapStart goal);
-          case x of
-              | None => return ()
-              | Some r => bind (renderProof handler (fromJson r : proof)) (set v)
+          bind (renderProof handler (fromJson x : proof)) (set v)
         }>
         <div class={page}>
           <p>Sequent calculus is a form of <i>backwards reasoning</i>, where
@@ -314,6 +311,7 @@ fun proving goal =
         </body>
       </xml>
       (* XXX initially, the proof box should glow, so the user nows that this is special *)
+      (* XXX we can't factor out the proof box, because there is no way to compose onload attributes *)
   end
   (*
   seqid <- fresh;

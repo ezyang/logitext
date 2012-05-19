@@ -1,4 +1,4 @@
 val init : unit -> transaction unit
-val refine : string -> option string
-val start : string -> option string
-val parseUniverse : string -> option string
+val refine : string -> string
+val start : string -> string
+val parseUniverse : string -> string

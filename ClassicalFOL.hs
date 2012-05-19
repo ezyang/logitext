@@ -36,6 +36,12 @@ import Ltac
 import CoqTop
 import JSONGeneric
 
+-- A EndUserFailure corresponds to user error; anything other exceptions
+-- are our fault
+data EndUserFailure = UpdateFailure | ParseFailure
+    deriving (Typeable, Show, Data)
+instance Exception EndUserFailure
+
 errorModule s = error ("ClassicalFOL." ++ s)
 
 -- We rely on naming being deterministic, so that we can have 'pure'
@@ -234,6 +240,7 @@ qToTac (RContract n _) = Tac "rContract" [con n]
 -- when we're using Maybe
 maybeError s m = maybe (errorModule s) return m
 eitherError s = either (\x -> errorModule (s ++ show x)) return
+userParseError = either (\_ -> throwIO ParseFailure) return
 
 -- NOTE Tactic failure may be from a built in (i.e. no clauses for
 -- match) or from an explicit fail, which can have a string resulting
@@ -248,7 +255,7 @@ eitherError s = either (\x -> errorModule (s ++ show x)) return
 data CoqError = TacticFailure | NoMoreSubgoals
     deriving (Show)
 
--- but bottom on input we don't understand
+-- Bottom on input we don't understand
 parseResponse :: [Content] -> Either CoqError S
 parseResponse raw = do
     let fake = Element (qn "fake") [] raw Nothing
@@ -271,10 +278,6 @@ parseResponse raw = do
     goal <- eitherError "parseResponse: " (C.parseTerm "goal" result)
     -- trace (show goal) $ return ()
     return (S (map fromCoq hypList) (listifyDisj (fromCoq goal)))
-
-data UpdateFailure = UpdateFailure
-    deriving (Typeable, Show)
-instance Exception UpdateFailure
 
 -- XXX leaky leak leak.  Also, it's a bottleneck.  (Try using a resource
 -- pool or something).  Also, we can make this more robust by rebooting
@@ -300,11 +303,11 @@ theCoq = unsafePerformIO $ do
 start :: String -> IO P
 start g = do
     -- hPutStrLn stderr g
-    goal <- eitherError "start: " $ parse (whiteSpace >> expr <* eof) "" g
+    goal <- userParseError $ parse (whiteSpace >> expr <* eof) "goal" g
     return (Goal (S [] [goal]))
 
 parseUniverse :: String -> IO U
-parseUniverse g = eitherError "parseUniverse: " $ parse (whiteSpace >> universe <* eof) "" g
+parseUniverse g = userParseError $ parse (whiteSpace >> universe <* eof) "universe" g
 
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
@@ -379,9 +382,6 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
 -- XXX partial (not a particularly stringent requirement; you can get
 -- around it with a few intros / tactic applications
 refine' _ _ = errorModule "refine: meta-implication must be phrased as implication"
-
--- XXX The functions here don't distinguish between developer error and
--- user error; they all result in a null.
 
 startString :: String -> IO Lazy.ByteString
 startString s = E.encode . toJSON <$> start s
