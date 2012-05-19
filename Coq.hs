@@ -1,5 +1,9 @@
 {-# LANGUAGE RankNTypes, TupleSections #-}
 
+-- Syntactic term representation, and parsing capability for
+-- 'Set Printing All'.  Long term, we should instead interpret
+-- the ideslave output.
+
 module Coq (
       Term(..)
     , Binder
@@ -74,6 +78,8 @@ parens     = P.parens lexer
 --  name ::= ident
 --  qualid ::= ident
 --  sort ::= Prop | Set | Type
+--
+-- Note that implication A -> B is equivalent to forall _ : A, B
 
 data Term = Forall [Binder] Term
           | Fun [Binder] Term
@@ -84,6 +90,8 @@ data Term = Forall [Binder] Term
           | Atom Name
     deriving (Show, Eq)
 
+-- Note: this rendering function doesn't exercise all of the
+-- parsing things we need to handle from 'Set Printing All' Coq.
 render :: Term -> String
 render (Forall bs t) = "(forall " ++ renderBinders bs ++ ", " ++ render t ++ ")"
 render (Fun bs t) = "(fun " ++ renderBinders bs ++ " => " ++ render t ++ ")"
@@ -96,20 +104,18 @@ render (Num i) = show i
 render (Atom n) = n
 
 renderBinders :: [Binder] -> String
-renderBinders [] = error "renderBinders: empty binder"
+renderBinders [] = error "Coq.renderBinders: empty binder"
 renderBinders [(n, t)] = "(" ++ n ++ ":" ++ render t ++ ")"
 renderBinders (x:xs) = renderBinders [x] ++ " " ++ renderBinders xs -- XXX code reuse at its finest
 
 -- We require the types of our binders!  If you Set Printing All you
--- should get them.
+-- will get them.
 type Binder = (Name, Term)
 type Name = String -- qualid's are squashed in here
 data Sort = Prop | Set | Type
     deriving (Show, Eq)
 
--- But the BNF is not enough to actually properly parse...
--- (precedences?)
---
+-- Note the BNF is not enough to actually properly parse (precedences!)
 -- Fortunately, we already have a nice converted definition in
 -- parsing/g_constr.ml4.  They also have some batshit weird interaction
 -- between their infix and prefix operators, so we don't use Parsec's
@@ -134,11 +140,9 @@ name = identifier <|> ("_" <$ reservedOp "_")
 
 -- operconstr:
 --  200 RIGHTA binder_constr
---  100 RIGHTA operconstr.90 ":" binder_constr
---             operconstr.90 ":" operconstr.100
---   90 RIGHTA operconstr.10 "->" binder_constr
---             operconstr.10 "->" operconstr.90
---   10 LEFTA  operconstr.0 appl_arg+ // this one might be wrong
+--  100 RIGHTA operconstr.10 ":" binder_constr
+--             operconstr.10 ":" operconstr.100
+--   10 LEFTA  operconstr.0 appl_arg+ // this one might be wrong, see what we're using
 --             "@" global operconstr.0*
 --    0        atomic_constr
 --             "(" operconstr.200 ")"
@@ -147,8 +151,8 @@ term :: P Term
 term = operconstr200
 
 -- There is a more efficient, left-factored representation for many of
--- these rules, and some of the tries are not necessary, but sprinkling
--- in try makes it easier to tell that things are correct, and
+-- these rules, and some of the 'try's are not necessary, but sprinkling
+-- it in makes it easier to tell that things are correct, and
 -- performance is not a primary concern.  If you're curious what the
 -- left-factored representation looks like, see Coq_efficient.hs
 
@@ -211,7 +215,7 @@ closed_binder = try (reservedOp "(" >> msBinder <$> many name <* reservedOp ":" 
 -- appl_arg:
 --  "(" lconstr ")" -- we don't need the hack yay!
 --  operconstr.0
-appl_arg = try (reservedOp "(" >> lconstr <* reservedOp ")")
+appl_arg = try (parens lconstr)
        <|> operconstr0
 
 -- atomic_constr:
@@ -228,7 +232,8 @@ sort = Prop <$ reserved "Prop" <|> Set <$ reserved "Set" <|> Type <$ reserved "T
 parse_sample = "or (forall _ : forall _ : forall _ : P, Q, P, P) False"
 sample = parse (term <* eof) "" parse_sample
 
-parseTerm = parse (whiteSpace >> term <* eof) ""
+parseTerm :: String -> String -> Either ParseError Term
+parseTerm = parse (whiteSpace >> term <* eof)
 
 -- XXX can haz test please (do it before you make changes)
 

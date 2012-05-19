@@ -36,7 +36,7 @@ import Ltac
 import CoqTop
 import JSONGeneric
 
-errorModule s = error ("ClassicalFOL: " ++ s)
+errorModule s = error ("ClassicalFOL." ++ s)
 
 -- We rely on naming being deterministic, so that we can have 'pure'
 -- proof data structures.  This is really not practical for real
@@ -263,12 +263,12 @@ parseResponse raw = do
     (\s -> when (s == "no-more-subgoals") (Left NoMoreSubgoals)) `traverse_` findAttr (qn "status") resp
     hypList <- mapMaybe extractHyp
              . rights
-             . map (C.parseTerm . strContent)
+             . map (C.parseTerm "hypothesis" . strContent)
              . findChildren (qn "hyp")
         <$> maybeError "parseResponse: no hyps found" (findChild (qn "hyps") resp)
     result <- strContent <$> maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
     -- trace result $ return ()
-    goal <- eitherError "parseResponse: parseTerm " (C.parseTerm result)
+    goal <- eitherError "parseResponse: " (C.parseTerm "goal" result)
     -- trace (show goal) $ return ()
     return (S (map fromCoq hypList) (listifyDisj (fromCoq goal)))
 
@@ -389,11 +389,11 @@ startString s = E.encode . toJSON <$> start s
 parseUniverseString :: String -> IO Lazy.ByteString
 parseUniverseString s = E.encode . toJSON <$> parseUniverse s
 
-refineString :: Lazy.ByteString -> IO (Maybe Lazy.ByteString)
+refineString :: Lazy.ByteString -> IO Lazy.ByteString
 refineString s =
     case L.parse json' s of
         L.Done _ v -> case fromJSON v of
-            Success a -> Just . E.encode . toJSON <$> refine a
+            Success a -> E.encode . toJSON <$> refine a
             _ -> errorModule "refineString: failed to decode JSON"
         _ -> errorModule "refineString: failed to parse JSON"
 

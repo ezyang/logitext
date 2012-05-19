@@ -43,9 +43,7 @@ refineFFI ctx s = catchToNull $ do
     -- bs must not escape from this function
     bs <- S.packCString s
     r <- refineString (L.fromChunks [bs])
-    case r of
-     Nothing -> return nullPtr
-     Just bs' -> lazyByteStringToUrWebCString ctx bs'
+    lazyByteStringToUrWebCString ctx r
 
 lazyByteStringToUrWebCString ctx bs = do
     -- XXX S.concat is really bad! Bad Edward!
