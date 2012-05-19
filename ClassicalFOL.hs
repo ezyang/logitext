@@ -383,12 +383,6 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
 -- around it with a few intros / tactic applications
 refine' _ _ = errorModule "refine: meta-implication must be phrased as implication"
 
-startString :: String -> IO Lazy.ByteString
-startString s = E.encode . toJSON <$> start s
-
-parseUniverseString :: String -> IO Lazy.ByteString
-parseUniverseString s = E.encode . toJSON <$> parseUniverse s
-
 refineString :: Lazy.ByteString -> IO Lazy.ByteString
 refineString s =
     case L.parse json' s of

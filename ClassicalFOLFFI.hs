@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls, ScopedTypeVariables #-}
+{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls, ScopedTypeVariables, DeriveDataTypeable #-}
 
 module ClassicalFOLFFI where
 
@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy as L
 import Foreign.Marshal.Utils
 import Foreign
 import Foreign.C.String
+import Data.Data
 import Control.Exception
 import Control.Monad
 import System.IO
@@ -21,40 +22,46 @@ import JSONGeneric
 
 data UrwebContext
 
+data Result a = EndUserFailure EndUserFailure
+              | InternalFailure String
+              | Success a
+    deriving (Data, Typeable)
+
 -- here's how you parse this: first, you try parsing using
 -- the expected result type.  If that doesn't work, try parsing
 -- using EndUserFailure.  And then finally, parse as string.
 -- XXX this doesn't work if we have something that legitimately
 -- needs to return a string, although we can force fix that
 -- by adding a wrapper...
-catchToErr ctx m =
-    m `catches`
-        [ Handler (\(e :: EndUserFailure) -> lazyByteStringToUrWebCString ctx (E.encode (toJSON e)))
-        , Handler (\(e :: SomeException) -> lazyByteStringToUrWebCString ctx (E.encode (toJSON (show e))))
+result m =
+    liftM Success m `catches`
+        [ Handler (return . EndUserFailure)
+        , Handler (return . InternalFailure . (show :: SomeException -> String))
         ]
 
 -- incoming string doesn't have to be Haskell managed
 -- outgoing string is on Urweb allocated memory, and
 -- is the unique outgoing one
-wrapper f = \ctx cs -> catchToErr ctx (peekUTF8String cs >>= startString >>= lazyByteStringToUrWebCString ctx)
+serialize ctx m = lazyByteStringToUrWebCString ctx . E.encode . toJSON =<< result m
+
+-- (f =<< peekUTF8String cs)
 
 initFFI :: IO ()
 initFFI = evaluate theCoq >> return ()
 
 startFFI :: Ptr UrwebContext -> CString -> IO CString
-startFFI = wrapper startString
+startFFI ctx s = serialize ctx (start =<< peekUTF8String s)
 
 parseUniverseFFI :: Ptr UrwebContext -> CString -> IO CString
-parseUniverseFFI = wrapper parseUniverseString
+parseUniverseFFI ctx s = serialize ctx (parseUniverse =<< peekUTF8String s)
 
 peekUTF8String = liftM U.toString . S.packCString
 
 refineFFI :: Ptr UrwebContext -> CString -> IO CString
-refineFFI ctx s = catchToErr ctx $ do
-    -- bs must not escape from this function
+refineFFI ctx s = serialize ctx $ do
     bs <- S.packCString s
-    r <- refineString (L.fromChunks [bs])
-    lazyByteStringToUrWebCString ctx r
+    r <- maybe (error "ClassicalFOLFFI.refineFFI") return (decode (L.fromChunks [bs]))
+    refine r
 
 lazyByteStringToUrWebCString ctx bs = do
     -- XXX S.concat is really bad! Bad Edward!

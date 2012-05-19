@@ -22,3 +22,5 @@
 /* hat tip http://stackoverflow.com/questions/6040005/relatively-position-an-element-without-it-taking-up-space-in-document-flow */
 .relMark {position:relative; width:0; height:0; display:inline;}
 .offsetBox {position:absolute; z-index:1; top:1em; left:0;}
+
+.error {margin-top:1em; border:1px solid #900; padding:0.2em; background: #F99; }

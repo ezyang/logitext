@@ -7,6 +7,9 @@ import qualified Data.Aeson.Types as T
 import Data.Generics
 import Data.Text (Text, pack, unpack)
 import qualified Data.Vector as V
+import Data.ByteString.Lazy (ByteString)
+import qualified Data.Attoparsec.Lazy as L
+import qualified Data.Aeson.Encode as E
 
 import Data.Attoparsec.Number (Number)
 import qualified Data.HashMap.Strict as H
@@ -163,6 +166,15 @@ genericToFromJSON x = case fromJSON . toJSON $ x of
 
 genericToFromJSONFoo :: Foo -> Bool
 genericToFromJSONFoo = genericToFromJSON
+
+decode :: Data a => ByteString -> Maybe a
+decode s =
+    case L.parse json' s of
+        L.Done _ v -> case fromJSON v of
+            Success a -> Just a
+            _ -> Nothing
+        _ -> Nothing
+
 
 data Foo = Foo {
       fooInt :: [Maybe String]

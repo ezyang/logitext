@@ -10,6 +10,7 @@ style relMark
 style offsetBox
 style working
 style page
+style error
 
 open Json
 
@@ -136,6 +137,10 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
 con end_user_failure = variant [UpdateFailure = unit, ParseFailure = unit]
 val json_end_user_failure : json end_user_failure = json_variant {UpdateFailure = "UpdateFailure", ParseFailure = "ParseFailure"}
 
+con result a = variant [EndUserFailure = end_user_failure, InternalFailure = string, Success = a]
+fun json_result [a] (_ : json a) : json (result a) =
+    json_variant {EndUserFailure = "EndUserFailure", InternalFailure = "InternalFailure", Success = "Success"}
+
 fun mapXiM [m ::: (Type -> Type)] (_ : monad m) [a] [ctx ::: {Unit}] (f : int -> a -> m (xml ctx [] [])) : list a -> m (xml ctx [] []) =
     let
         fun mapXiM' i ls =
@@ -178,7 +183,11 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                             then (
                                 rawu <- get r;
                                 u <- rpc (zapParseUniverse rawu);
-                                makePending (f (fromJson u : universe)))
+                                match (fromJson u : result universe)
+                                { Success = fn x => makePending (f x)
+                                , InternalFailure = fn _ => return ()
+                                , EndUserFailure = fn _ => return ()
+                                })
                             else return ()}
                         onblur={set prompter <xml></xml>} />
                     </div>
@@ -279,7 +288,20 @@ val head = <xml><link rel="stylesheet" type="text/css" href="http://localhost/lo
 
 fun proving goal =
   v <- source <xml></xml>;
-  let fun handler x = z <- rpc (zapRefine x); bind (renderProof handler (fromJson z : proof)) (set v)
+  err <- source <xml></xml>;
+  let fun showError e = set err <xml><div class={error}>{[e]}</div></xml>
+      val clearError = set err <xml></xml>
+      fun handler x =
+        z <- rpc (zapRefine x);
+        (* XXX duplication *)
+        match (fromJson z : result proof)
+            { Success = fn r => clearError; bind (renderProof handler r) (set v)
+            , EndUserFailure = fn e => match e
+                { UpdateFailure = fn () => showError "No valid inference rule."
+                , ParseFailure = fn () => showError "Parse failure."
+                }
+            , InternalFailure = fn s => showError s
+            }
   in
   return <xml>
         <head>
@@ -288,7 +310,14 @@ fun proving goal =
         </head>
         <body onload={
           x <- rpc (zapStart goal);
-          bind (renderProof handler (fromJson x : proof)) (set v)
+          match (fromJson x : result proof)
+              { Success = fn r => clearError; bind (renderProof handler r) (set v)
+              , EndUserFailure = fn e => match e
+                { UpdateFailure = fn () => showError "Oops! Something bad happened."
+                , ParseFailure = fn () => showError "Parse failure."
+                }
+              , InternalFailure = fn s => showError s
+              }
         }>
         <div class={page}>
           <p>Sequent calculus is a form of <i>backwards reasoning</i>, where
@@ -305,6 +334,7 @@ fun proving goal =
           <div class={working}>
               <div class={proof}>
                 <dyn signal={signal v}/>
+                <dyn signal={signal err}/>
               </div>
           </div>
         </div>
