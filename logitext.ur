@@ -120,8 +120,8 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , LNot       = fn _ => "(¬l)"
    , LForall    = fn _ => "(∀l)"
    , LExists    = fn _ => "(∃l)"
-   , LContract  = fn _ => "(contract:l)"
-   , LWeaken    = fn _ => "(weaken:l)"
+   , LContract  = fn _ => ""
+   , LWeaken    = fn _ => ""
    , RExact     = fn _ => ""
    , RConj      = fn _ => "(∧r)"
    , RDisj      = fn _ => "(∨r)"
@@ -131,8 +131,8 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , RNot       = fn _ => "(¬r)"
    , RForall    = fn _ => "(∀r)"
    , RExists    = fn _ => "(∃r)"
-   , RContract  = fn _ => "(contract:r)"
-   , RWeaken    = fn _ => "(weaken:r)"
+   , RContract  = fn _ => ""
+   , RWeaken    = fn _ => ""
    }
 
 con end_user_failure = variant [UpdateFailure = unit, ParseFailure = unit]
@@ -156,7 +156,7 @@ end)
 type proof = Proof.r
 fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
-        fun makePendingU prompter (f : universe -> tactic int) : transaction unit =
+        fun makePendingU prompter (f : universe -> tactic int) (g : tactic int) : transaction unit =
                 r <- source "";
                 (* XXX would be nice if the ctextbox automatically grabbed focus *)
                 set prompter <xml><div class={relMark}>
@@ -173,6 +173,8 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                                 })
                             else return ()}
                         onblur={set prompter <xml></xml>} />
+                      or
+                      <button value="Contract" onclick={makePending g} />
                     </div>
                   </div></xml>
     in
@@ -187,7 +189,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Not    = fn _ => makePending (make [#LNot] (i, 0)),
                     Top    = fn _ => makePending (make [#LTop] (i, 0)),
                     Bot    = fn _ => makePending (make [#LBot] i),
-                    Forall = fn _ => makePendingU prompter (fn u => make [#LForall] (i, u, 0)),
+                    Forall = fn _ => makePendingU prompter (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0)),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }}>
                 {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Hyps;
@@ -202,7 +204,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Top    = fn _ => makePending (make [#RTop] i),
                     Bot    = fn _ => makePending (make [#RBot] (i, 0)),
                     Forall = fn _ => makePending (make [#RForall] (i, 0)),
-                    Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)),
+                    Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0)),
                     }}>
                 {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Cons;
     return <xml><ul class={commaList}>{left}</ul> ⊢ <ul class={commaList}>{right}</ul></xml>
@@ -333,6 +335,7 @@ fun tutorial () =
   exOrIdentity <- mkWorkspace "A \/ B |- B \/ A";
   exDeMorgan <- mkWorkspace "~(A \/ B) -> ~A /\ ~B";
   exForallDist <- mkWorkspace "(forall x. P(x)) /\ (forall x. Q(x)) -> forall y. P(y) /\ Q(y)";
+  exForallContract <- mkWorkspace "forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))";
   return <xml>
   <head>
     <title>Tutorial</title>
@@ -342,7 +345,7 @@ fun tutorial () =
     infAxiom.Onload; infLConj.Onload; infRConj.Onload; infLImp.Onload; infRImp.Onload;
     infLDisj.Onload; infRDisj.Onload; infLNot.Onload; infRNot.Onload; infLForall.Onload; infRForall.Onload;
     infLExists.Onload; infRExists.Onload; exForallIdentity.Onload; exAndIdentity.Onload; exOrIdentity.Onload;
-    exDeMorgan.Onload; exForallDist.Onload
+    exDeMorgan.Onload; exForallDist.Onload; exForallContract.Onload
   }>
     <div class={page}>
 
@@ -481,7 +484,7 @@ fun tutorial () =
       <p>The rules for the quantifiers are particularly interesting.  The
       left and right rules look symmetrical, but there's an important difference:
       in the case of a the left-forall rule, you (the prover) get to pick what
-      to replace <i>x</i> with.  In the right-forall rule, the system picks a
+      to replace <i>x</i> with (ignore the button that says "Contract" for now).  In the right-forall rule, the system picks a
       variable that doesn't match anything you've seen before. (In the case
       of exists, the situation is swapped.)  This is important if you
       want to prove this statement:</p>
@@ -499,18 +502,23 @@ fun tutorial () =
       it's a good idea to have the system pick as many variables for you as
       possible, before you do any choosing.</p>
 
+      <p>The final piece of the puzzle is the "contract" button, which
+      duplicates a hypothesis or goal, so you can reuse it later.  Use
+      of this <i>structural rule</i> may be critical to certain proofs.</p>
+
       <p>With these inference rules, you now have the capability to
-      prove almost everything in first-order logic! (The one last inference
-      rule you need is called contraction, but I haven't implemented
-      the interface for it.)  The next section will contain some exercises
+      prove everything in first-order logic!  The next section will contain some exercises
       for you to try.</p>
 
       <h2>Exercises</h2>
+
+      Nota bene: the last one is hard.
 
       {exAndIdentity.Widget}
       {exOrIdentity.Widget}
       {exDeMorgan.Widget}
       {exForallDist.Widget}
+      {exForallContract.Widget}
 
     </div>
   </body>
@@ -530,8 +538,9 @@ and proving goal =
           on sequents.  Inference rules correspond closely to <i>clauses</i> in the sequent,
           so in Logitext (and other proof-by-pointing systems), all you need to do is click
           on a clause to see what inference rule is triggered (some rules will need a
-          member of the universe (e.g. <i>z</i>), in which case an input box will pop up.
-          If that made no sense to use, check out <a link={tutorial ()}>the tutorial</a>.
+          member of the universe, try using <i>z</i>), in which case an input box will pop up
+          (you can also choose to duplicate the rules by clicking "Contract").
+          If that made no sense to you, check out <a link={tutorial ()}>the tutorial</a>.
           Or, you can <a link={main ()}>return to main page...</a></p>
         </div>
         {wksp.Widget}
@@ -585,8 +594,6 @@ and main () =
             <li>z : U (our universe is non-empty, so z is always a valid member
             of the universe)</li>
         </ul>
-        <p>Unfortunately, we don't currently support contraction/weakening rules,
-        so there may be some statements you cannot prove yet.</p>
         </div>
       </body>
     </xml>
