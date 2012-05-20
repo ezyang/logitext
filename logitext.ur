@@ -575,7 +575,8 @@ and main () =
         It is intended to assist students who are learning <i>Gentzen trees</i>
         as a way of structuring derivations of logical statements.
         Underneath the hood, Logitext interfaces with Coq in order to check
-        the validity of your proof steps.</p>
+        the validity of your proof steps. Get the source at
+        <a href="https://github.com/ezyang/logitext">GitHub</a>.</p>
         <p>To get started, check out the <a link={tutorial ()}>tutorial</a>, or dive right
         in and type in something to prove:</p>
         <form>
