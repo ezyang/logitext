@@ -65,7 +65,6 @@ refineFFI ctx s = serialize ctx $ do
 
 lazyByteStringToUrWebCString ctx bs = do
     let s = S.concat (L.toChunks bs)
-    print s
     -- XXX S.concat is really bad! Bad Edward!
     S.unsafeUseAsCStringLen s $ \(c,n) -> do
         x <- uw_malloc ctx (n+1)

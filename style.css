@@ -6,7 +6,7 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .viewport { height:500px; width:800px; overflow:hidden; border:1px #CCC solid; text-align:center; }
 
 .working { text-align:center; margin-top:1em; }
-.proof { display:inline-block; }
+.proof { display:inline-block; white-space:nowrap; }
 .proof table { width:100%; border-collapse:collapse; margin: auto; }
 .proof td { padding:0; border:0; margin:0; text-align:center; }
 .proof .sibling { display: inline-block; vertical-align:bottom; }
