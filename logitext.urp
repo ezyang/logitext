@@ -11,4 +11,5 @@ ffi js
 
 $/option
 $/list
+$/monad
 logitext

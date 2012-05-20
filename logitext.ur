@@ -141,24 +141,6 @@ con result a = variant [EndUserFailure = end_user_failure, InternalFailure = str
 fun json_result [a] (_ : json a) : json (result a) =
     json_variant {EndUserFailure = "EndUserFailure", InternalFailure = "InternalFailure", Success = "Success"}
 
-fun mapXiM [m ::: (Type -> Type)] (_ : monad m) [a] [ctx ::: {Unit}] (f : int -> a -> m (xml ctx [] [])) : list a -> m (xml ctx [] []) =
-    let
-        fun mapXiM' i ls =
-            case ls of
-                [] => return <xml/>
-              | x :: ls =>
-                this <- f i x;
-                rest <- mapXiM' (i+1) ls;
-                return <xml>{this}{rest}</xml>
-    in
-        mapXiM' 0
-    end
-
-fun liftM2 [m ::: (Type -> Type)] (_ : monad m) [a] [b] [c] (f : a -> b -> c) (mx : m a) (my : m b) : m c =
-    x <- mx;
-    y <- my;
-    return (f x y)
-
 structure Proof = Json.Recursive(struct
   con t a = variant [Goal = sequent,
                      Pending = sequent * tactic int,
@@ -193,7 +175,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     </div>
                   </div></xml>
     in
-    left <- mapXiM (fn i (Logic.Rec x) =>
+    left <- List.mapXiM (fn i (Logic.Rec x) =>
               (* XXX suboptimal; only want to allocate prompter when necessary *)
               prompter <- source <xml></xml>;
               return <xml><li><span class={junct} onclick={match x {
@@ -208,7 +190,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }}>
                 {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Hyps;
-    right <- mapXiM (fn i (Logic.Rec x) =>
+    right <- List.mapXiM (fn i (Logic.Rec x) =>
               prompter <- source <xml></xml>;
               return <xml><li><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#RExact] i),
@@ -241,10 +223,10 @@ fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transa
            fun singleQ f (n : int, u : universe, a : proof) : transaction xbody =
                 render (fn x => f (n, u, x)) a
            fun double f (n : int, a : proof, b : proof) : transaction xbody =
-                liftM2 join (render (fn x => f (n, x, b)) a) (render (fn x => f (n, a, x)) b)
+                Monad.liftM2 join (render (fn x => f (n, x, b)) a) (render (fn x => f (n, a, x)) b)
        in
        top <- match t {
-          Cut       = fn (l, a, b) => liftM2 join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
+          Cut       = fn (l, a, b) => Monad.liftM2 join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
           LExact    = empty,
           LBot      = empty,
           RExact    = empty,
