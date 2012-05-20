@@ -121,6 +121,10 @@ disjList :: [L] -> L
 disjList [] = Bot
 disjList (x:xs) = Disj x (disjList xs)
 
+conjList :: [L] -> L
+conjList [] = Top
+conjList (x:xs) = Conj x (conjList xs)
+
 -- quickcheck: listifyDisj (disjList xs) == xs
 
 -- Building up a proof tree is a multi-stage process.
@@ -292,7 +296,7 @@ theCoq = unsafePerformIO $ do
         -- depend on how the user initially sets up the equation
         , "Variable z : U"
         , "Variable f g h : U -> U"
-        , "Variable A B C : Prop"
+        , "Variable A B C D Δ Γ : Prop"
         , "Variable P Q R : U -> Prop"
         , "Set Printing All"
         , "Set Default Timeout 1" -- should be more than enough! no proof search see?
@@ -303,8 +307,8 @@ theCoq = unsafePerformIO $ do
 start :: String -> IO P
 start g = do
     -- hPutStrLn stderr g
-    goal <- userParseError $ parse (whiteSpace >> expr <* eof) "goal" g
-    return (Goal (S [] [goal]))
+    sequent <- userParseError $ parse (whiteSpace >> sequent <* eof) "goal" g
+    return (Goal sequent)
 
 parseUniverse :: String -> IO U
 parseUniverse g = userParseError $ parse (whiteSpace >> universe <* eof) "universe" g
@@ -316,7 +320,7 @@ refine p@(Proof s _)   = refine' s p
 
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
-refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
+refine' (S hs cs) pTop = withMVar theCoq $ \f -> do
     -- hPutStrLn stderr (show pTop)
     -- XXX demand no errors
     -- despite being horrible mutation, this plays an important
@@ -335,8 +339,10 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
         -- XXX the original invariant we checked didn't handle Coq
         -- alpha-renaming binders for us. Oops.
         checkState s = return () -- readState >>= \s' -> print s' >> assert (Just s == s') (return ())
-    r <- run ("Goal " ++ C.render (toCoq (disjList cs)))
+    r <- run ("Goal " ++ C.render (toCoq (Imp (conjList hs) (disjList cs))))
     when (not r) $ errorModule "refine: setting goal failed" -- we're kind of screwed
+    r' <- run "sequent"
+    when (not r') $ errorModule "refine: initializing sequent failed"
     let fp p@(Goal s) = checkState s >> (run "admit" >>= (`unless` errorModule "refine: could not admit")) >> return p
         -- TODO also check if change in number of subgoals is correct
         fp (Pending s q) = do
@@ -378,10 +384,6 @@ refine' (S [] cs) pTop = withMVar theCoq $ \f -> do
         fp p@(Proof s _) = checkState s >> return p
         fq q = run (show (qToTac q)) >>= (`unless` errorModule "refine: inconsistent proof state")
     preorder fp fq pTop `finally` f "Abort All"
-
--- XXX partial (not a particularly stringent requirement; you can get
--- around it with a few intros / tactic applications
-refine' _ _ = errorModule "refine: meta-implication must be phrased as implication"
 
 refineString :: Lazy.ByteString -> IO Lazy.ByteString
 refineString s =
@@ -427,6 +429,7 @@ integer    = P.integer lexer
 whiteSpace = P.whiteSpace lexer
 parens     = P.parens lexer
 comma      = P.comma lexer
+commaSep   = P.commaSep lexer
 commaSep1  = P.commaSep1 lexer
 
 -- XXX names term versus expr
@@ -442,6 +445,10 @@ commaSep1  = P.commaSep1 lexer
 --          identifier (universe , ... universe)
 --
 -- also Unicode supported, so that copypasta works
+
+sequent =  try (S <$> commaSep expr <* choice [reservedOp "|-", reservedOp "⊢" ] <*> commaSep expr)
+       <|> try (S [] <$> commaSep expr)
+       <?> "sequent"
 
 table   = [ [prefix "~" Not, prefix "¬" Not ]
           , [binary "/\\" Conj AssocLeft, binary "∧" Conj AssocLeft ]

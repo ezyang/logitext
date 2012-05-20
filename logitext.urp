@@ -1,4 +1,5 @@
 allow url http://localhost/logitext/style.css
+allow url http://en.wikipedia.org/wiki/Sequent_calculus
 rewrite all Logitext/*
 library haskell
 library meta

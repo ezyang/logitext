@@ -91,7 +91,7 @@ Ltac dropNeg nH :=
     let x := fresh in
     cut (T \/ TG);
     [ let H := fresh in let G := fresh in
-      destruct 1 as [ H | G ]; [ contradict H; exact nH | exact G ]
+      destruct 1 as [ H | G ]; [ exfalso; apply nH; trivial | exact G ]
     |]
   end end; clear nH.
   (* |- ?P \/ ?G *)
@@ -238,6 +238,13 @@ Goal denote ( [True] |= [False] ).
     rBot Con0.
     lTop Hyp0.
 Abort.
+
+Goal denote ( [~~A] |= [A] ).
+  sequent.
+    lNot Hyp0.
+    rNot Con0.
+    lExact Hyp0.
+Qed.
 
 (* an example *)
 Goal denote ( [ True; C /\ C; (~ True) \/ True ] |= [ False; False; False; ((A -> B) -> A) -> A ] ).

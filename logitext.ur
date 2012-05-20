@@ -1,4 +1,5 @@
 style proof
+style rules
 style inference
 style tagBox
 style tag
@@ -268,63 +269,276 @@ fun zapStart x : transaction string = return (Haskell.start x)
 
 val head = <xml><link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" /></xml>
 
-fun proving goal =
+fun handleResultProof handler v err (z : string) =
+    let fun showError e = set err <xml><div class={error}>{[e]}</div></xml>
+        val clearError = set err <xml></xml>
+    in match (fromJson z : result proof)
+        { Success = fn r => clearError; bind (renderProof handler r) (set v)
+        , EndUserFailure = fn e => match e
+            { UpdateFailure = fn () => showError "The inference you attempted to make is invalid."
+            , ParseFailure = fn () => showError "Parse failure; check your syntax."
+            }
+        , InternalFailure = fn s => showError s
+        }
+    end
+
+fun mkWorkspaceRaw mproof =
   v <- source <xml></xml>;
   err <- source <xml></xml>;
-  let fun showError e = set err <xml><div class={error}>{[e]}</div></xml>
-      val clearError = set err <xml></xml>
-      fun handler x =
-        z <- rpc (zapRefine x);
-        (* XXX duplication *)
-        match (fromJson z : result proof)
-            { Success = fn r => clearError; bind (renderProof handler r) (set v)
-            , EndUserFailure = fn e => match e
-                { UpdateFailure = fn () => showError "No valid inference rule."
-                , ParseFailure = fn () => showError "Parse failure."
-                }
-            , InternalFailure = fn s => showError s
-            }
-  in
+  let fun handler x = bind (rpc (zapRefine x)) (handleResultProof handler v err)
+  in return {
+    Onload = bind mproof (handleResultProof handler v err),
+    Widget = <xml>
+          <div class={working}>
+              <div class={proof}>
+                <dyn signal={signal v}/>
+              </div>
+          </div>
+          <dyn signal={signal err}/>
+    </xml>
+    }
+  end
+
+fun mkWorkspace goal = mkWorkspaceRaw (rpc (zapStart goal))
+fun mkExample proof = mkWorkspaceRaw (return proof)
+
+fun tutorial () =
+  exSequent <- mkWorkspace "A, B |- C, D";
+  (* XXX ewwwwwww *)
+  exAxiom <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}";
+  (*
+    (Proof.Rec (make [#Proof] (
+        {Hyps = Cons (Logic.Rec (make [#Pred] ("A", Nil)), Nil), Cons = Cons (Logic.Rec (make [#Pred] ("A", Nil)), Nil)},
+        make [#LExact] 0
+        )));
+  *)
+  exLDisj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}";
+  infAxiom <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":1}}}}";
+  infLConj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LConj\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}}}}}}}";
+  infRConj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RConj\":{\"1\":0,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
+  infLImp <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LImp\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
+  infRImp <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RImp\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
+  infLNot <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}}]},\"2\":{\"LNot\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
+  infRNot <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RNot\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
+  infLForall <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}}]},\"2\":{\"LForall\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"z\",\"2\":[]}]}}]}},\"2\":{\"1\":\"z\",\"2\":[]}}}}}}";
+  infRForall <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RForall\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
+  infLExists <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Exists\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}}]},\"2\":{\"LExists\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}]}}}}}}}";
+  infRExists <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Exists\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RExists\":{\"1\":0,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"z\",\"2\":[]}]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}},\"2\":{\"1\":\"z\",\"2\":[]}}}}}}";
+  infLDisj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}";
+  infRDisj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RDisj\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
+  exAOrNotA <- mkWorkspace "|- A \/ ~ A";
+  exAOrNotADone <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}}}}],\"hyps\":[]},\"2\":{\"RDisj\":{\"1\":0,\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}}],\"hyps\":[]},\"2\":{\"RNot\":{\"1\":1,\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}}}}}}}}}";
+  exForallIdentity <- mkWorkspace "(forall x. P(x)) |- (forall x. P(x))";
+  exAndIdentity <- mkWorkspace "A /\ B |- B /\ A";
+  exOrIdentity <- mkWorkspace "A \/ B |- B \/ A";
+  exDeMorgan <- mkWorkspace "~(A \/ B) -> ~A /\ ~B";
+  exForallDist <- mkWorkspace "(forall x. P(x)) /\ (forall x. Q(x)) -> forall y. P(y) /\ Q(y)";
+  return <xml>
+  <head>
+    <title>Tutorial</title>
+    {head}
+  </head>
+  <body onload={exSequent.Onload; exAxiom.Onload; exAOrNotA.Onload; exAOrNotADone.Onload; exLDisj.Onload;
+    infAxiom.Onload; infLConj.Onload; infRConj.Onload; infLImp.Onload; infRImp.Onload;
+    infLDisj.Onload; infRDisj.Onload; infLNot.Onload; infRNot.Onload; infLForall.Onload; infRForall.Onload;
+    infLExists.Onload; infRExists.Onload; exForallIdentity.Onload; exAndIdentity.Onload; exOrIdentity.Onload;
+    exDeMorgan.Onload; exForallDist.Onload
+  }>
+    <div class={page}>
+
+      <p><i>This interactive tutorial is intended to explain what first-order
+      logic and the sequent calculus
+      are to an interested software engineer who has
+      some familiarity with basic logic, but no experience with formal
+      logic.</i></p>
+
+      <h2>Motivation</h2>
+
+      <p>One of the first things an software engineer learns about is
+      the Boolean, and how logical operators like AND/OR/NOT let you
+      manipulate these values.  Boolean logic lies behind
+      primitive constructs such as the conditional and the loop,
+      and a simple understanding based on truth tables is usually
+      sufficient for the everyday programming.</p>
+
+      <p>However, if we want logic as a tool to describe the world,
+      Boolean logic is fairly inflexible.  Suppose I claim
+      "all men are mortal" and "Socrates is a man". I should then be
+      able to deduce "Socrates is mortal";  however, in Boolean logic, these three statements
+      have no relationship with each other.  We need more structure, so to speak.</p>
+
+      <p>We can achieve this structure using a <i>quantifier</i>,
+      encapsulating what we mean by "all men".  Formally, we'd say, "for all <i>x</i>,
+      if <i>x</i> is a man, <i>x</i> is a mortal"; symbolically,
+      we'd say "∀x. P(x) -> Q(x)", where <i>P</i> is true if <i>x</i>
+      is a man, and <i>Q</i> is true if <i>x</i> is mortal.  Use of quantifiers
+      takes us from Boolean logic to first-order logic.</p>
+
+      <p>However, now there's a problem: we can't figure out if something is true
+      anymore by writing out the truth table.  When a quantifier is involved, there
+      may be infinitely many values of <i>x</i> in the world, and we can't check
+      if something is true for each one.  So we need another way of reasoning
+      about statements in first-order logic.</p>
+
+      <p>The sequent calculus is one such way of reasoning about statements in
+      first-order logic.  It sets up a formal system (similar to
+      a state machine or a Turing machine) which precisely specifies
+      what valid inferences we can make.  This specification is so precise
+      we can program it into a computer, and it is also powerful enough to let us
+      derive any true statement in first-order logic (this property is called
+      completeness.)</p>
+
+      <p>Sequent calculus of first-order logic is worth studying for various
+      reasons.  One is that it is very beautiful, in much the same way that
+      other work in the foundations of mathematics is.  Another is that the
+      notation used for writing down sequents is relied upon heavily
+      in the type theory literature, and knowing how to read inference
+      rules is an essential skill if you want to "read the Greek."  And finally,
+      first-order logic itself is well worth knowing, because it sets the
+      stage for more advanced, higher-order logics, and is also the key
+      principle behind many of the powerful computational tools we have,
+      such as SMT solvers.</p>
+
+      <h2>How it works</h2>
+
+      <p>Sequent calculus is centered around the sequent, which looks like this:</p>
+
+      {exSequent.Widget}
+
+      <p>The turnstile (⊢) divides the sequent into hypotheses on the left, and
+      conclusions on the right.  You can read the sequent as "If A and B, then
+      C or D" (e.g. commas on the left-hand side are conjunction, commas
+      on the right-hand side are disjunction, and the turnstile is implication.)
+      The reason for these "meta" connectives may not quite be clear at
+      the moment, but for now just accept that they exist.</p>
+
+      <p>If a statement is axiomatically true (that is, we can assume them without
+      proof), we put a bar on top of it, as such:</p>
+
+      {exAxiom.Widget}
+
+      <p>The only axioms in sequent calculus are sequents where a proposition
+      appears on both the left side and the right side, e.g. tautologies "If
+      A, then A."</p>
+
+      <p>The real meat of sequent calculus has to do with inference rules which
+      let us handle sequents which are not axiomatically true.  Here is an example
+      of an inference rule:</p>
+
+      {exLDisj.Widget}
+
+      <p>(By convention, Δ and Γ are used as placeholders for other hypotheses
+      and conclusions which are not important for the inference rule.)  What
+      does this say?  It says that if Γ, A ⊢ Δ and Γ, B ⊢ Δ are true, then
+      Γ, A ∨ B ⊢ Δ is true.  (Nota bene: ∨ means disjunction, i.e. "or".)
+      It should be pretty clear why this is the case: if I can get to Δ
+      using just A, and I can get to Δ using just B, then I can get to Δ
+      using A or B.</p>
+
+      <p>Here is another way of looking at it: if I want to prove Γ, A ∨ B ⊢ Δ,
+      then all I need to prove is Γ, A ⊢ Δ and Γ, B ⊢ Δ.  This style of thinking,
+      where I start with the goal and decide what I need to do to prove it,
+      is called <i>backwards deduction</i>.  Sequent calculus is a backwards
+      deductive system, because the choice of inference rule is constrained
+      by what you want to prove.  The inference
+      rule shown above is called the "left-disjunction" rule, because it
+      is the rule you use if you see a disjunction on the left side of
+      the turnstile.  This lets you do some fairly mindless proofs:</p>
+
+      {exAOrNotA.Widget}
+
+      <p>The above example is an interactive example (actually, all of the
+      examples have been interactive, although the earlier ones have been
+      fairly constrained).  Try mousing over it;
+      elements which are highlighted can be clicked on.  Clicking on a clause
+      applies the inference rule associated with that connective, and generates
+      a new goal for you to try.  If you click around for a little bit, you'll
+      very quickly end up with a complete inference tree:</p>
+
+      {exAOrNotADone.Widget}
+
+      <p>Easy, right?  So, to recap, a sequent calculus proof develops from
+      bottom up, and each bar indicates the application of an inference rule.
+      Your goal is to get to a statement which is axiomatically true.</p>
+
+      <p>Now that the preliminaries are out of the way, let's see all of
+      the inference rules for first order logic:</p>
+
+      <table class={rules}>
+      <tr><td colspan=2>{infAxiom.Widget}</td></tr>
+      <tr><td>{infLNot.Widget}</td><td>{infRNot.Widget}</td></tr>
+      <tr><td>{infLConj.Widget}</td><td>{infRConj.Widget}</td></tr>
+      <tr><td>{infLDisj.Widget}</td><td>{infRDisj.Widget}</td></tr>
+      <tr><td>{infLImp.Widget}</td><td>{infRImp.Widget}</td></tr>
+      <tr><td>{infLForall.Widget}</td><td>{infRForall.Widget}</td></tr>
+      <tr><td>{infLExists.Widget}</td><td>{infRExists.Widget}</td></tr>
+      </table>
+
+      <p>A few of these rules deserve special attention.  The rules for
+      negation are rather odd, because they encode "proof by contradiction".
+      It's worth convincing yourself that they work.</p>
+
+      <p>The rules for the quantifiers are particularly interesting.  The
+      left and right rules look symmetrical, but there's an important difference:
+      in the case of a the left-forall rule, you (the prover) get to pick what
+      to replace <i>x</i> with.  In the right-forall rule, the system picks a
+      variable that doesn't match anything you've seen before. (In the case
+      of exists, the situation is swapped.)  This is important if you
+      want to prove this statement:</p>
+
+      {exForallIdentity.Widget}
+
+      <p>If you start off with the left-forall, you are asked for a value
+      to instantiate the quantifier with.  By convention, you're allowed to
+      assume the existence of an individual (in the lingo, the universe
+      is non-empty); you can refer to this individual as <i>z</i>.  But if
+      you then apply the right-forall, the system gives you a different
+      individual, and you are stuck!  If you try the proof the other way,
+      it goes through, because the system gives you an arbitrary variable,
+      and you can then pass that to the left-forall prompt.  In general,
+      it's a good idea to have the system pick as many variables for you as
+      possible, before you do any choosing.</p>
+
+      <p>With these inference rules, you now have the capability to
+      prove almost everything in first-order logic! (The one last inference
+      rule you need is called contraction, but I haven't implemented
+      the interface for it.)  The next section will contain some exercises
+      for you to try.</p>
+
+      <h2>Exercises</h2>
+
+      {exAndIdentity.Widget}
+      {exOrIdentity.Widget}
+      {exDeMorgan.Widget}
+      {exForallDist.Widget}
+
+    </div>
+  </body>
+  </xml>
+
+and proving goal =
+  wksp <- mkWorkspace goal;
   return <xml>
         <head>
           <title>Proving {[goal]}</title>
           {head}
         </head>
-        <body onload={
-          x <- rpc (zapStart goal);
-          match (fromJson x : result proof)
-              { Success = fn r => clearError; bind (renderProof handler r) (set v)
-              , EndUserFailure = fn e => match e
-                { UpdateFailure = fn () => showError "Oops! Something bad happened."
-                , ParseFailure = fn () => showError "Parse failure."
-                }
-              , InternalFailure = fn s => showError s
-              }
-        }>
+        <body onload={wksp.Onload}>
         <div class={page}>
-          <p>Sequent calculus is a form of <i>backwards reasoning</i>, where
-          you start with the goal and make deductions until you reach an axiomatically
-          valid statement (A ⊢ A). The turnstile (⊢) is a meta-implication which
-          divides your hypotheses (on the left) and your goals (on the right).  All
-          of the hypotheses are available to you, and as a system for classical
-          logic you only need to manage to prove one of the goals (it's a disjunction).
-          Sequent calculus inference steps involve the backwards elimination of
-          a clause (on the left side or right side); you can find out what happens
-          if you try to eliminate a clause by clicking on it.  Some inference rules
-          require you to specify a value to instantiate a variable to; type it in and press enter.
-          <a link={main ()}>Or try something else...</a></p>
-          <div class={working}>
-              <div class={proof}>
-                <dyn signal={signal v}/>
-                <dyn signal={signal err}/>
-              </div>
-          </div>
+          <p>The <a href="http://en.wikipedia.org/wiki/Sequent_calculus">sequent calculus</a>
+          is a form of backwards reasoning, with left and right inference rules which operate
+          on sequents.  Inference rules correspond closely to <i>clauses</i> in the sequent,
+          so in Logitext (and other proof-by-pointing systems), all you need to do is click
+          on a clause to see what inference rule is triggered (some rules will need a
+          member of the universe (e.g. <i>z</i>), in which case an input box will pop up.
+          If that made no sense to use, check out <a link={tutorial ()}>the tutorial</a>.
+          Or, you can <a link={main ()}>return to main page...</a></p>
         </div>
+        {wksp.Widget}
         </body>
       </xml>
       (* XXX initially, the proof box should glow, so the user nows that this is special *)
       (* XXX we can't factor out the proof box, because there is no way to compose onload attributes *)
-  end
   (*
   seqid <- fresh;
         <body onload={bind (renderProof handler pf) (set v); Js.infinitedrag seqid <xml><dyn signal={signal v}/></xml>}>
@@ -352,15 +566,24 @@ and main () =
         as a way of structuring derivations of logical statements.
         Underneath the hood, Logitext interfaces with Coq in order to check
         the validity of your proof steps.</p>
-        <p>To get started, type in something to prove:</p>
+        <p>To get started, check out the <a link={tutorial ()}>tutorial</a>, or dive right
+        in and type in something to prove:</p>
         <form>
           <textbox{#Goal}/><submit action={provingTrampoline} value="Prove"/>
         </form>
-        <p>The syntax is basically what you would expect, but here are some examples to get you started:</p>
+        <p>Here are some examples:</p>
         <ul>
           {tryProof "((A -> B) -> A) -> A"}
           {tryProof "A \/ ~A"}
           {tryProof "(forall x, P(x)) -> (exists x, P(x))"}
+        </ul>
+        <p>The following variables are in scope for use in your statements:</p>
+        <ul>
+            <li>A B C : Prop</li>
+            <li>P Q R : U -> Prop</li>
+            <li>f g h : U -> U</li>
+            <li>z : U (our universe is non-empty, so z is always a valid member
+            of the universe)</li>
         </ul>
         <p>Unfortunately, we don't currently support contraction/weakening rules,
         so there may be some statements you cannot prove yet.</p>

@@ -64,8 +64,10 @@ refineFFI ctx s = serialize ctx $ do
     refine r
 
 lazyByteStringToUrWebCString ctx bs = do
+    let s = S.concat (L.toChunks bs)
+    print s
     -- XXX S.concat is really bad! Bad Edward!
-    S.unsafeUseAsCStringLen (S.concat (L.toChunks bs)) $ \(c,n) -> do
+    S.unsafeUseAsCStringLen s $ \(c,n) -> do
         x <- uw_malloc ctx (n+1)
         copyBytes x c n
         poke (plusPtr x n) (0 :: Word8)
