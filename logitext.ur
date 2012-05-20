@@ -159,8 +159,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
         fun makePendingU prompter (f : universe -> tactic int) (g : tactic int) : transaction unit =
                 r <- source "";
                 (* XXX would be nice if the ctextbox automatically grabbed focus *)
-                set prompter <xml><div class={relMark}>
-                    <div class={offsetBox}>
+                set prompter <xml><div class={relMark}><div class={offsetBox}>
                       <ctextbox size=6 source={r}
                         onkeyup={fn k => if eq k 13
                             then (
@@ -175,13 +174,12 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                         onblur={set prompter <xml></xml>} />
                       or
                       <button value="Contract" onclick={makePending g} />
-                    </div>
-                  </div></xml>
+                    </div></div></xml>
     in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
               (* XXX suboptimal; only want to allocate prompter when necessary *)
               prompter <- source <xml></xml>;
-              return <xml><li><span class={junct} onclick={match x {
+              return <xml><li><dyn signal={signal prompter}/><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#LExact] i),
                     Conj   = fn _ => makePending (make [#LConj] (i, 0)),
                     Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
@@ -192,10 +190,10 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Forall = fn _ => makePendingU prompter (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0)),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }}>
-                {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Hyps;
+                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps;
     right <- List.mapXiM (fn i (Logic.Rec x) =>
               prompter <- source <xml></xml>;
-              return <xml><li><span class={junct} onclick={match x {
+              return <xml><li><dyn signal={signal prompter}/><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#RExact] i),
                     Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
                     Disj   = fn _ => makePending (make [#RDisj] (i, 0)),
@@ -206,7 +204,7 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                     Forall = fn _ => makePending (make [#RForall] (i, 0)),
                     Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0)),
                     }}>
-                {renderLogic 0 (Logic.Rec x)}</span><dyn signal={signal prompter}/></li></xml>) s.Cons;
+                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
     return <xml><ul class={commaList}>{left}</ul> ⊢ <ul class={commaList}>{right}</ul></xml>
   end
 fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
