@@ -1,9 +1,12 @@
 allow url http://localhost/logitext/style.css
+allow url http://localhost/logitext/tipsy.css
 allow url http://en.wikipedia.org/wiki/Sequent_calculus
 allow url https://github.com/ezyang/logitext
 rewrite all Logitext/*
 library haskell
 library meta
+script http://localhost/logitext/jquery.js
+script http://localhost/logitext/jquery.tipsy.js
 script http://localhost/logitext/ffi.js
 jsFunc Js.infinitedrag=infinitedrag
 clientOnly Js.infinitedrag

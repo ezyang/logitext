@@ -12,3 +12,7 @@ function infinitedrag(draggable, contents) {
         }
     }});
 }
+
+$(document).ready(function(){
+    $('span[title]').tipsy({opacity:1});
+});

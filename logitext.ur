@@ -322,7 +322,10 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
 fun zapRefine (x : proof) : transaction string  = return (Haskell.refine (toJson x))
 fun zapStart x : transaction string = return (Haskell.start x)
 
-val head = <xml><link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" /></xml>
+val head = <xml>
+    <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
+    <link rel="stylesheet" type="text/css" href="http://localhost/logitext/tipsy.css" />
+    </xml>
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml></xml>
@@ -506,8 +509,10 @@ fun tutorial () =
       <p>All of the examples in this document are interactive.  You can
       reset your changes to an example by clicking the turnstile symbol (⊢).</p>
 
-      <p><b>Sequents.</b> Below is a sequent.  You can interact with it by clicking
-      on the Γ or the Δ, which are <i>clauses</i>, but for this
+      <p><b>Sequents.</b> Below is a <span title="A statement consisting
+      of a list of hypotheses, a turnstile (⊢), and a list of
+      conclusions.">sequent</span>.  You can interact with it by
+      clicking on the Γ or the Δ, which are <i>clauses</i>, but for this
       particular example, you will get errors, because there are no
       valid deductions for this sequent.  The sequent reads as "Γ
       implies Δ": the turnstile represents one-way implication.</p>
