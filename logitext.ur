@@ -510,7 +510,7 @@ fun tutorial () =
       on the Γ or the Δ, which are <i>clauses</i>, but for this
       particular example, you will get errors, because there are no
       valid deductions for this sequent.  The sequent reads as "Γ
-      implies Δ".</p>
+      implies Δ": the turnstile represents one-way implication.</p>
 
       {exBasic.Widget}
 

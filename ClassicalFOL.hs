@@ -102,7 +102,7 @@ freeU b (Fun x rs) =
       else Map.singleton x (Just (length rs))
 
 freeU' :: Set String -> U -> Map String (Maybe Int)
-freeU' b (Fun x []) = Map.singleton x Nothing
+freeU' b (Fun x []) | not (Set.member x b) = Map.singleton x Nothing -- hack to allow higher-order terms
 freeU' b f = freeU b f
 
 -- Note: quantifiable things are lower case, predicates are upper case
@@ -236,12 +236,16 @@ data Q a = Cut L a a
          | RContract Int a
     deriving (Functor, Show, Data, Typeable)
 
--- not bothering with sequents themselves, we get them top level
-freeP (Goal _) = Map.empty
-freeP (Pending _ q) = freeQ (const Map.empty) q
-freeP (Proof _ q) = freeQ freeP q
+keySet = Set.fromDistinctAscList . map fst . Map.toAscList
 
-freeQ f q = case q of
+-- must not check the sequents; the interplay here is subtle, because
+-- free variables introduced by tactics must NOT be quantified on the
+-- outside.
+freeP (Goal _) = Map.empty
+freeP (Pending s q) = freeQ (keySet (freeFun (freeS s))) (const Map.empty) q
+freeP (Proof s q) = freeQ (keySet (freeFun (freeS s))) freeP q
+
+freeQ b f q = case q of
     Cut l x y -> error "freeQ: Cut not implemented yet"
     LExact _ -> Map.empty
     LConj _ x -> f x
@@ -251,7 +255,8 @@ freeQ f q = case q of
     LTop _ x -> f x
     LNot _ x -> f x
     -- guaranteed not to be behind any binders
-    LForall _ u x -> msetUnion (freeU' Set.empty u) (f x)
+    LForall _ u x -> msetUnion (freeU' b u) (f x)
+    -- need to keep track of binders
     LExists _ x -> f x
     LContract _ x -> f x
     LWeaken _ x -> f x
@@ -263,7 +268,7 @@ freeQ f q = case q of
     RTop _ -> Map.empty
     RNot _ x -> f x
     RForall _ x -> f x
-    RExists _ u x -> msetUnion (freeU' Set.empty u) (f x)
+    RExists _ u x -> msetUnion (freeU' b u) (f x)
     RWeaken _ x -> f x
     RContract _ x -> f x
 
