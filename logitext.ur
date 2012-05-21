@@ -537,8 +537,8 @@ fun tutorial () =
       <p>We can achieve this structure using a <i>quantifier</i>,
       encapsulating what we mean by "all men".  Formally, we'd say, "for all <i>x</i>,
       if <i>x</i> is a man, <i>x</i> is a mortal"; symbolically,
-      we'd say "∀x. P(x) -> Q(x)", where <i>P</i> is true if <i>x</i>
-      is a man, and <i>Q</i> is true if <i>x</i> is mortal.  Use of quantifiers
+      we'd say "∀x. P(x) -> Q(x)", where <i>P</i> is true if and only if <i>x</i>
+      is a man, and <i>Q</i> is true if and only if <i>x</i> is mortal.  Use of quantifiers
       takes us from Boolean logic to first-order logic.</p>
 
       <p>However, now there's a problem: we can't figure out if
@@ -550,10 +550,13 @@ fun tutorial () =
       when is a statement in first-order logic <i>valid</i>, that is, it
       is true no matter what predicates or individuals are involved.
       Such statements make up the <i>tautologies</i> (trivially true
-      statements) of first-order logic.</p>
+      statements) of first-order logic.  Other ways of proving statements
+      in first-order logic include appealing to various equivalences;
+      however, how do you prove that an equivalence is true?  You use the
+      sequent calculus!</p>
 
-      <p>The sequent calculus is one such way of reasoning about statements in
-      first-order logic.  It sets up a formal system (similar to
+      <p>The sequent calculus is one way of reasoning about statements in
+      first-order logic.  It sets up a self-contained formal system (similar to
       a state machine or a Turing machine) which precisely specifies
       what valid inferences we can make.  This specification is so precise
       we can program it into a computer, and it is also powerful enough to let us
@@ -565,7 +568,7 @@ fun tutorial () =
       specifications and constraints.  These constraints can be given to
       tools called SMT solvers, which can then automatically determine
       how to satisfy these constraints.  You can't do that with plain
-      English!</p>
+      English.</p>
 
       <p>The sequent calculus is one tool for understanding how
       first-order logic works on the inside.  It is a little more formal
