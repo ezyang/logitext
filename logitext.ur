@@ -15,6 +15,7 @@ style offsetBox
 style working
 style page
 style error
+style turnstile
 
 open Json
 
@@ -251,7 +252,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0)),
                     }}>
                 {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
-    return <xml><ul class={commaList}>{left}</ul> ⊢ <ul class={commaList}>{right}</ul></xml>
+    return <xml><ul class={commaList}>{left}</ul> <span class={turnstile} onclick={h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></xml>
   end
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
@@ -323,7 +324,8 @@ fun handleResultProof handler v proofStatus err (z : string) =
                             bind (renderProof showError handler r) (set v);
                             set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
         , EndUserFailure = fn e => set proofStatus proofIsIncomplete; match e
-            { UpdateFailure = fn () => showError "The inference you attempted to make is invalid."
+           (* XXX assuming a bit about what update failures are... *)
+            { UpdateFailure = fn () => showError "No matching atomic clause on other side of turnstile."
             , ParseFailure = fn () => showError "Parse error."
             }
         , InternalFailure = fn s => showError s
@@ -353,23 +355,32 @@ fun mkWorkspaceRaw showErrors mproof =
   end
 
 fun mkWorkspace goal = mkWorkspaceRaw True (rpc (zapStart goal))
-fun mkExample proof = mkWorkspaceRaw False (return proof)
+fun mkExample proof = mkWorkspaceRaw True (return proof)
 
 fun tutorial () =
   exBasic <- mkWorkspace "Γ |- Δ";
-  exSequent <- mkWorkspaceRaw False (rpc (zapStart "A, B |- C, D"));
   (* XXX ewwwwwww *)
   exAxiom <- mkWorkspace "A |- A";
   exAxiomDone <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}";
   exLeft <- mkWorkspace "Γ, A |- A";
   exRight <- mkWorkspace "A |- A, Δ";
-  (*
-    (Proof.Rec (make [#Proof] (
-        {Hyps = Cons (Logic.Rec (make [#Pred] ("A", Nil)), Nil), Cons = Cons (Logic.Rec (make [#Pred] ("A", Nil)), Nil)},
-        make [#LExact] 0
-        )));
-  *)
-  exLDisj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}";
+  exDeduction <- mkWorkspace "A \/ B |- C";
+  exLConj <- mkWorkspace "Γ, A /\ B |- Δ";
+  exRConj <- mkWorkspace "Γ |- A /\ B, Δ";
+  exLDisj <- mkWorkspace "Γ, A \/ B |- Δ";
+  exRDisj <- mkWorkspace "Γ |- A \/ B, Δ";
+  exLImp <- mkWorkspace "Γ, A -> B |- Δ";
+  exRImp <- mkWorkspace "Γ |- A -> B, Δ";
+  exLNot <- mkWorkspace "Γ, ~A |- Δ";
+  exRNot <- mkWorkspace "Γ |- ~A, Δ";
+  exLNotImp <- mkWorkspace "Γ, A -> False |- Δ";
+  exRNotImp <- mkWorkspace "Γ |- A -> False, Δ";
+  exLForall <- mkWorkspace "Γ, forall x. P(x) |- Δ";
+  exRForall <- mkWorkspace "Γ |- forall x. P(x), Δ";
+  exLExists <- mkWorkspace "Γ, exists x. P(x) |- Δ";
+  exRExists <- mkWorkspace "Γ |- exists x. P(x), Δ";
+  exRImpClassical <- mkWorkspace "|- (A -> B) \/ A";
+  exLDisjFull <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}";
   infAxiom <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":1}}}}";
   infLConj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LConj\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}}}}}}}";
   infRConj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RConj\":{\"1\":0,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
@@ -389,6 +400,7 @@ fun tutorial () =
   exAndIdentity <- mkWorkspace "A /\ B |- B /\ A";
   exOrIdentity <- mkWorkspace "A \/ B |- B \/ A";
   exDeMorgan <- mkWorkspace "~(A \/ B) -> ~A /\ ~B";
+  exDrinkersParadox <- mkWorkspace "|- exists x. P(x) -> forall y. P(y)";
   exForallDist <- mkWorkspace "(forall x. P(x)) /\ (forall x. Q(x)) -> forall y. P(y) /\ Q(y)";
   exForallContract <- mkWorkspace "forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))";
   return <xml>
@@ -398,11 +410,21 @@ fun tutorial () =
   </head>
   <body onload={
     exBasic.Onload; exAxiom.Onload; exAxiomDone.Onload; exLeft.Onload; exRight.Onload;
-    exSequent.Onload; exAOrNotA.Onload; exAOrNotADone.Onload; exLDisj.Onload;
+    exAOrNotA.Onload; exAOrNotADone.Onload; exLDisjFull.Onload;
+    exDeduction.Onload; exRImpClassical.Onload;
+
+    exLConj.Onload; exRConj.Onload; exLImp.Onload; exRImp.Onload;
+    exLDisj.Onload; exRDisj.Onload; exLNot.Onload; exRNot.Onload; exLForall.Onload; exRForall.Onload;
+    exLExists.Onload; exRExists.Onload;
+
+    exLNotImp.Onload; exRNotImp.Onload;
+
     infAxiom.Onload; infLConj.Onload; infRConj.Onload; infLImp.Onload; infRImp.Onload;
     infLDisj.Onload; infRDisj.Onload; infLNot.Onload; infRNot.Onload; infLForall.Onload; infRForall.Onload;
-    infLExists.Onload; infRExists.Onload; exForallIdentity.Onload; exAndIdentity.Onload; exOrIdentity.Onload;
-    exDeMorgan.Onload; exForallDist.Onload; exForallContract.Onload
+    infLExists.Onload; infRExists.Onload;
+
+    exForallIdentity.Onload; exAndIdentity.Onload; exOrIdentity.Onload;
+    exDeMorgan.Onload; exForallDist.Onload; exForallContract.Onload; exDrinkersParadox.Onload
   }>
     <div class={page}>
 
@@ -460,26 +482,27 @@ fun tutorial () =
       English!</p>
 
       <p>The sequent calculus is one tool for understanding how
-      first-order logic works on the inside.  It doesn't quite map to
-      how humans usually reason about logic, but it is very simple to
-      apply, which makes it useful when your intuition is broken.
-      However, perhaps more importantly, the notation and concepts
-      introduced in sequent calculus are relied upon heavily in the
-      academic type theory literature, where inference rules are
-      considerably more complicated.  Studying how to understand these
-      rules in a simpler setting is essential to being able to "read the
-      Greek."  But even if you're not an academic, inference rules are
-      a remarkably quick way to understand the type systems of languages.</p>
+      first-order logic works on the inside.  It is a little more formal
+      than you might reason normally, but this formality means that it
+      can tackle confusing statements in logic with ease.  Additionally,
+      the notation and concepts introduced in sequent calculus are
+      relied upon heavily in the academic type theory literature, where
+      inference rules are considerably more complicated.  Studying how
+      to understand these rules in a simpler setting is essential to
+      being able to "read the Greek."  But even if you're not an
+      academic, inference rules are a remarkably quick way to understand
+      the type systems of languages.</p>
 
       <h2>How it works</h2>
 
-      <p>All of the examples in this document are interactive.</p>
+      <p>All of the examples in this document are interactive.  You can
+      reset your changes to an example by clicking the turnstile symbol (⊢).</p>
 
       <p><b>Sequents.</b> Below is a sequent.  You can interact with it by clicking
       on the Γ or the Δ, which are <i>clauses</i>, but for this
       particular example, you will get errors, because there are no
       valid deductions for this sequent.  The sequent reads as "Γ
-      implies Δ"; the symbol ⊢ is often called a <i>turnstile</i>.</p>
+      implies Δ".</p>
 
       {exBasic.Widget}
 
@@ -506,53 +529,113 @@ fun tutorial () =
 
       {exRight.Widget}
 
-      <p><b>Inference rules.</b>  We haven't seen any logical operators
-      in our sequents, and up until now, clicking on a clause has either
+      <p><b>Backwards deduction.</b>  Up until now, clicking on a clause has either
       told us "this sequent is axiomatically true" (completing the
-      proof) or given us an error.</p>
+      proof) or given us an error.  These make for very boring proofs:
+      what about logical operators?  When you click on a clause that contains
+      a logical operator, the system generates one or more further goals,
+      which you need to prove.  It's its way of saying, "In order to show
+      A ∨ B ⊢ C is true, you need to show A ⊢ C is true and B ⊢ C is true."
+      Notice that in both of the subgoals, there no longer is an OR; in
+      sequent calculus, we use backwards deduction to get rid of logical
+      operators until we have atomic clauses.</p>
 
-      <p>The real meat of sequent calculus has to do with inference rules which
-      let us handle sequents which are not axiomatically true.  Here is an example
-      of an inference rule:</p>
+      {exDeduction.Widget}
 
+      <p><b>Inference rules.</b>  Now, it is great that the computer has
+      told you what new goals you need to prove, but what if you wanted
+      to write out the proof by hand?  You need to know what to write down.
+      Fortunately, for each logical operator, there are exactly two <i>inference
+      rules</i> which say what new goals are generated: one for when it's
+      on the left side of the turnstile (hypothesis), and one when it's on the right
+      (conclusion).  Here is the inference rule for deduction: the Γ and Δ are
+      conventionally placeholders for other hypotheses and conclusions which
+      are not affected by the inference rule.</p>
+
+      {exLDisjFull.Widget}
+
+      <p>The small text on the right of the bar indicates what rule was
+      applied: the first letter indicates the logical connective
+      involved, and the second letter indicates <b>l</b>eft or
+      <b>r</b>ight.  We'll now go on a tour of all the inference rules
+      in first-order logic.</p>
+
+      <p><b>Trivial rules.</b>  Recall that all of the hypotheses on the
+      left side of the turnstile can be thought of as ANDed together, and
+      the conclusions on the right side ORed together.  Thus, if I have a hypothesis
+      which is an AND, or a conclusion which is an OR, we can very easily get
+      rid of the identifier.</p>
+
+      {exLConj.Widget}
+      {exRDisj.Widget}
+
+      <p><b>Meta-implication rule.</b>  The turnstile itself can be thought
+      of as implication, so to prove A → B, I can assume A as a hypothesis
+      and prove B instead ("moving" the clause to the left side of the turnstile.)</p>
+
+      {exRImp.Widget}
+
+      <p>It's worth noting that, because this is classical logic, you can use
+      any hypothesis generated this way for any other conclusion (a sort
+      of "bait and switch").  It's worth taking some time to convince yourself why this
+      is allowed, since it shows up in other inference rules too.  Here is a simple example of this:</p>
+
+      {exRImpClassical.Widget}
+
+      <p><b>Branching rules.</b>  What about conjunction, disjunction and implication
+      on the other side of the turnstile?  All of these generate <i>two</i> new
+      goals, both of which need to be proved.  Convince yourself that these
+      inference rules work.</p>
+
+      {exRConj.Widget}
       {exLDisj.Widget}
+      {exLImp.Widget}
 
-      <p>(By convention, Δ and Γ are used as placeholders for other hypotheses
-      and conclusions which are not important for the inference rule.)  What
-      does this say?  It says that if Γ, A ⊢ Δ and Γ, B ⊢ Δ are true, then
-      Γ, A ∨ B ⊢ Δ is true.  (Nota bene: ∨ means disjunction, i.e. "or".)
-      It should be pretty clear why this is the case: if I can get to Δ
-      using just A, and I can get to Δ using just B, then I can get to Δ
-      using A or B.</p>
+      <p><b>Negation rules.</b> Negation is a strange connective: applying its inference
+      rule moves the un-negated clause to the other side of the turnstile.</p>
 
-      <p>Here is another way of looking at it: if I want to prove Γ, A ∨ B ⊢ Δ,
-      then all I need to prove is Γ, A ⊢ Δ and Γ, B ⊢ Δ.  This style of thinking,
-      where I start with the goal and decide what I need to do to prove it,
-      is called <i>backwards deduction</i>.  Sequent calculus is a backwards
-      deductive system, because the choice of inference rule is constrained
-      by what you want to prove.  The inference
-      rule shown above is called the "left-disjunction" rule, because it
-      is the rule you use if you see a disjunction on the left side of
-      the turnstile.  This lets you do some fairly mindless proofs:</p>
+      {exLNot.Widget}
+      {exRNot.Widget}
 
-      {exAOrNotA.Widget}
+      <p>An easy way to see why this is true is to observe that ¬A is equivalent to A → ⊥,
+      where ⊥ denotes a contradiction (not A is the same as A implies contradiction.)  Then
+      we can just use the inference rules for implication and the inference rules
+      for contradiction.</p>
 
-      <p>The above example is an interactive example (actually, all of the
-      examples have been interactive, although the earlier ones have been
-      fairly constrained).  Try mousing over it;
-      elements which are highlighted can be clicked on.  Clicking on a clause
-      applies the inference rule associated with that connective, and generates
-      a new goal for you to try.  If you click around for a little bit, you'll
-      very quickly end up with a complete inference tree:</p>
+      {exLNotImp.Widget}
+      {exRNotImp.Widget}
 
-      {exAOrNotADone.Widget}
+      <p><b>Quantifier rules.</b> The rules for the quantifiers are
+      particularly interesting.  Try clicking on these four rules:</p>
 
-      <p>Easy, right?  So, to recap, a sequent calculus proof develops from
-      bottom up, and each bar indicates the application of an inference rule.
-      Your goal is to get to a statement which is axiomatically true.</p>
+      {exLForall.Widget}
+      {exRForall.Widget}
+      {exLExists.Widget}
+      {exRExists.Widget}
 
-      <p>Now that the preliminaries are out of the way, let's see all of
-      the inference rules for first order logic:</p>
+      <p>In the case of the left-forall rule and the right-exists rule, you (the prover) get to pick what
+      to replace <i>x</i> with.  This can be any lower-case symbol which already
+      appears in the sequent, or <i>z</i> (which is always available.)</p>
+
+      <p>In the case of the right-forall rule and the left-exists rule, the system picks a
+      variable. It is mean, and will always pick something distinct from anything
+      existing in the sequent. It's generally a good idea to apply these two rules
+      first, as seen by this example:</p>
+
+      {exForallIdentity.Widget}
+
+      <p>If you start off with the left-forall, you are asked for a value
+      to instantiate the quantifier with.  You might fill it in with <i>z</i>, but then if
+      you then apply the right-forall, the system gives you a different
+      individual, and you are stuck!  If you try the proof the other way,
+      things work, because the system gives you an arbitrary variable,
+      and you can then pass that to the left-forall prompt.</p>
+
+      <p>One last note: the "contraction" button duplicates a hypothesis
+      or goal, so you can reuse it later.  Use of this <i>structural
+      rule</i> may be critical to certain proofs.</p>
+
+      <p><b>Summary.</b> Here are all the inference rules for first order logic:</p>
 
       <table class={rules}>
       <tr><td colspan=2>{infAxiom.Widget}</td></tr>
@@ -564,48 +647,20 @@ fun tutorial () =
       <tr><td>{infLExists.Widget}</td><td>{infRExists.Widget}</td></tr>
       </table>
 
-      <p>A few of these rules deserve special attention.  The rules for
-      negation are rather odd, because they encode "proof by contradiction".
-      It's worth convincing yourself that they work.</p>
-
-      <p>The rules for the quantifiers are particularly interesting.  The
-      left and right rules look symmetrical, but there's an important difference:
-      in the case of a the left-forall rule, you (the prover) get to pick what
-      to replace <i>x</i> with (ignore the button that says "Contract" for now).  In the right-forall rule, the system picks a
-      variable that doesn't match anything you've seen before. (In the case
-      of exists, the situation is swapped.)  This is important if you
-      want to prove this statement:</p>
-
-      {exForallIdentity.Widget}
-
-      <p>If you start off with the left-forall, you are asked for a value
-      to instantiate the quantifier with.  By convention, you're allowed to
-      assume the existence of an individual (in the lingo, the universe
-      is non-empty); you can refer to this individual as <i>z</i>.  But if
-      you then apply the right-forall, the system gives you a different
-      individual, and you are stuck!  If you try the proof the other way,
-      it goes through, because the system gives you an arbitrary variable,
-      and you can then pass that to the left-forall prompt.  In general,
-      it's a good idea to have the system pick as many variables for you as
-      possible, before you do any choosing.</p>
-
-      <p>The final piece of the puzzle is the "contract" button, which
-      duplicates a hypothesis or goal, so you can reuse it later.  Use
-      of this <i>structural rule</i> may be critical to certain proofs.</p>
-
       <p>With these inference rules, you now have the capability to
       prove everything in first-order logic!  The next section will contain some exercises
       for you to try.</p>
 
       <h2>Exercises</h2>
 
-      <p>Nota bene: the last one requires contraction.</p>
+      <p>Nota bene: the last two require contraction.</p>
 
       {exAndIdentity.Widget}
       {exOrIdentity.Widget}
       {exDeMorgan.Widget}
       {exForallDist.Widget}
       {exForallContract.Widget}
+      {exDrinkersParadox.Widget}
 
       <p>Return to <a link={main ()}>the main page.</a></p>
 
