@@ -597,6 +597,7 @@ fun tutorial () =
       {exLNot.Widget}
       {exRNot.Widget}
 
+(* XXX FastCGI hates me, throws unurlification errors
       <p>An easy way to see why this is true is to observe that ¬A is equivalent to A → ⊥,
       where ⊥ denotes a contradiction (not A is the same as A implies contradiction.)  Then
       we can just use the inference rules for implication and the inference rules
@@ -604,6 +605,7 @@ fun tutorial () =
 
       {exLNotImp.Widget}
       {exRNotImp.Widget}
+*)
 
       <p><b>Quantifier rules.</b> The rules for the quantifiers are
       particularly interesting.  Try clicking on these four rules:</p>
