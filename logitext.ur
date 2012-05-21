@@ -1,6 +1,7 @@
 style proof
 style proofIsDone
 style proofIsIncomplete
+style proofIsPending
 style rules
 style inference
 style tagBox
@@ -316,7 +317,7 @@ fun handleResultProof handler v proofStatus err (z : string) =
         { Success = fn r => clearError;
                             bind (renderProof handler r) (set v);
                             set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
-        , EndUserFailure = fn e => match e
+        , EndUserFailure = fn e => set proofStatus proofIsIncomplete; match e
             { UpdateFailure = fn () => showError "The inference you attempted to make is invalid."
             , ParseFailure = fn () => showError "Parse failure; check your syntax."
             }
@@ -328,7 +329,9 @@ fun mkWorkspaceRaw showErrors mproof =
   v <- source <xml></xml>;
   err <- source <xml></xml>;
   proofStatus <- source proofIsIncomplete;
-  let fun handler x = bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
+  let fun handler x =
+    set proofStatus proofIsPending;
+    bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
   in return {
     Onload = bind mproof (handleResultProof handler v proofStatus err),
     Widget = <xml>

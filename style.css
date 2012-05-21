@@ -31,4 +31,5 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .rules {margin:1em auto;}
 
 .proofIsDone .proof {background:#CFC;}
+.proofIsPending .proof {background:#FCFCBB;}
 .proofIsIncomplete .proof {}
