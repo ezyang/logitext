@@ -22,13 +22,20 @@ open Json
 
 task initialize = Haskell.init
 
+fun renderName (f : string) : xbody =
+  let val i = strcspn f "0123456789"
+  in if le i 0 (* XXX weird bug *)
+       then <xml>{[f]}</xml>
+       else <xml>{[substring f 0 i]}<sub>{[substring f i (strlen f - i)]}</sub></xml>
+  end
+
 structure Universe = Json.Recursive(struct
   con t a = string * list a
   fun json_t [a] (_ : json a) : json (t a) = json_record ("1", "2")
 end)
 type universe = Universe.r
 fun renderUniverse ((Universe.Rec (f,xs)) : universe) : xbody =
-  <xml>{[f]}{
+  <xml>{renderName f}{
     case xs of
     | Cons _ => <xml>(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>
     | Nil => <xml></xml>
@@ -69,8 +76,8 @@ fun renderLogic p ((Logic.Rec r) : logic) : xbody = match r
    Not = fn a => renderParen (p>4) <xml>¬{renderLogic 5 a}</xml>,
    Top = fn _ => <xml>⊤</xml>,
    Bot = fn _ => <xml>⊥</xml>,
-   Forall = fn (x, a) => renderParen (p>0) <xml>∀{[x]}. {renderLogic 0 a}</xml>,
-   Exists = fn (x, a) => renderParen (p>0) <xml>∃{[x]}. {renderLogic 0 a}</xml>}
+   Forall = fn (x, a) => renderParen (p>0) <xml>∀{renderName x}. {renderLogic 0 a}</xml>,
+   Exists = fn (x, a) => renderParen (p>0) <xml>∃{renderName x}. {renderLogic 0 a}</xml>}
 
 type sequent = { Hyps : list logic, Cons : list logic }
 val json_sequent : json sequent = json_record {Hyps = "hyps", Cons = "cons"}
@@ -637,8 +644,8 @@ fun tutorial () =
       </table>
 
       <p>In the case of the left-forall rule and the right-exists rule, you (the prover) get to pick what
-      to replace <i>x</i> with.  This can be any lower-case symbol which already
-      appears in the sequent, or <i>z</i> (which is always available.)</p>
+      to replace <i>x</i> with.  This can be any symbol, including complicated expressions
+      like <i>f(y,g(z))</i>.</p>
 
       <p>In the case of the right-forall rule and the left-exists rule,
       the system picks a variable. The rules of logic demand that it
@@ -649,12 +656,13 @@ fun tutorial () =
 
       {exForallIdentity.Widget}
 
-      <p>If you start off with the left-forall, you are asked for a value
-      to instantiate the quantifier with.  You might fill it in with <i>z</i>, but then if
+      <p>If you start off with the left-forall, you are asked for a
+      value to instantiate the quantifier with.  If you fill it in, when
       you then apply the right-forall, the system gives you a different
-      individual, and you are stuck!  If you try the proof the other way,
-      things work, because the system gives you an arbitrary variable,
-      and you can then pass that to the left-forall prompt.</p>
+      individual, and you are stuck!  If you try the proof the other
+      way, things work, because the system gives you an arbitrary
+      variable, and you can then pass that to the left-forall
+      prompt.</p>
 
       <p>One last note: the "contraction" button duplicates a hypothesis
       or goal, so you can reuse it later.  Use of this <i>structural
@@ -706,9 +714,9 @@ and proving goal =
           is a form of backwards reasoning, with left and right inference rules which operate
           on sequents.  Inference rules correspond closely to <i>clauses</i> in the sequent,
           so in Logitext (and other proof-by-pointing systems), all you need to do is click
-          on a clause to see what inference rule is triggered (some rules will need a
-          member of the universe, try using <i>z</i>), in which case an input box will pop up
-          (you can also choose to duplicate the rules by clicking "Contract").
+          on a clause to see what inference rule is triggered. In some cases, an input box will pop up;
+          enter a lower case expression like <i>z</i> or <i>f(x)</i>.
+          (You can also choose to duplicate the rules by clicking "Contraction").
           If that made no sense to you, check out <a link={tutorial ()}>the tutorial</a>.
           Or, you can <a link={main ()}>return to main page...</a></p>
           {wksp.Widget}
@@ -749,14 +757,9 @@ and main () =
           {tryProof "A \/ ~A"}
           {tryProof "(forall x, P(x)) -> (exists x, P(x))"}
         </ul>
-        <p>The following variables are in scope for use in your statements:</p>
-        <ul>
-            <li>A B C : Prop</li>
-            <li>P Q R : U -> Prop</li>
-            <li>f g h : U -> U</li>
-            <li>z : U (our universe is non-empty, so z is always a valid member
-            of the universe)</li>
-        </ul>
+        <p>By convention, capitalized identifiers represent propositions
+        and predicates, while lower-case identifiers represent functions
+        and elements of the universe.</p>
         </div>
       </body>
     </xml>
