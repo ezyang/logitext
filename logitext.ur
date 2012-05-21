@@ -327,6 +327,69 @@ val head = <xml>
     <link rel="stylesheet" type="text/css" href="http://localhost/logitext/tipsy.css" />
     </xml>
 
+val wSequent : xbody =
+    <xml><span title="A statement of provability.  Γ ⊢ Δ states that given the
+    hypotheses Γ, one of the conclusions Δ is provable.">sequent</span></xml>
+
+val wClause : xbody =
+    <xml><span title="A statement of logic. Inside a sequent, clauses
+    are either hypotheses or conclusions.">clause</span></xml>
+
+val wTurnstile : xbody =
+    <xml><span title="The name for the symbol ⊢, which separates hypotheses
+    and conclusions in a sequent.  It can be thought of as a kind of
+    meta-implication, distinct from normal implication (→).">turnstile</span></xml>
+
+val wImplication : xbody =
+    <xml><span title="Denoted by the arrow →, as in A → B, it means that
+    if A is true, then B is true.  Note that A → B and B → A are
+    different statements.">implication</span></xml>
+
+val wAtomicClause : xbody =
+    <xml><span title="A statement of logic which has no logical
+    connectives in it.  Examples: A and P(x) are atomic clauses, but A →
+    B is not.">atomic clause</span></xml>
+
+val wConjunction : xbody =
+    <xml><span title="Denoted by the symbol ∧, conjunction is
+    logical AND, which is true only when both sides are
+    true.">conjunction</span></xml>
+
+val wDisjunction : xbody =
+    <xml><span title="Denoted by the symbol ∨, disjunction is
+    logical OR, which is true as long as one or another side
+    is true (or both).">disjunction</span></xml>
+
+val wProgress : xbody =
+    <xml><span title="A proof can make progress if there is a valid
+    deductive step proceeding from it; that is, you can click a clause
+    and have more goals be generated.  Otherwise, it is stuck.">progress</span></xml>
+
+val wLogicalOperator : xbody =
+    <xml><span title="Any symbol which operates on logical propositions.
+    Examples include conjunction, disjunction and implication.  A clause with
+    no logical operators is atomic.">logical operator</span></xml>
+
+val wGoal : xbody =
+    <xml><span title="Any sequent which needs to be proved in order to
+    complete the proof tree.  You can visually identify these as sequents
+    on the top of the proof tree with no bar on top.">goal</span></xml>
+
+val wBackwardsDeduction : xbody =
+    <xml><span title="A style of logical inference, where you start with
+    the desired conclusion and work backwards.  Opposite of forward inference,
+    where you start with axioms and then deduce statements.">backwards deduction</span></xml>
+
+val wInferenceRule : xbody =
+    <xml><span title="A rule which says what valid inferences are.  An inference
+    rule is specified by writing hypotheses, a horizontal bar, and then the valid
+    conclusion.  In backwards deduction, an inference rule says what you need
+    to prove in order to show the current goal to be true.">inference rule</span></xml>
+
+val wQuantifier : xbody =
+    <xml><span title="Any logical operator which binds a new variable.  For all (∀) and exists (∃)
+    are the two quantifiers in first order logic.">quantifier</span></xml>
+
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml></xml>
         fun showError e = set err <xml><div class={error}>{[e]} <button onclick={clearError} value="Dismiss" /></div></xml>
@@ -506,75 +569,76 @@ fun tutorial () =
 
       <h2>How it works</h2>
 
-      <p>All of the examples in this document are interactive.  You can
-      reset your changes to an example by clicking the turnstile symbol (⊢).</p>
+      <p>All of the examples in this document are interactive.
+      Technical terms are <span title="This is an explanation of the
+      term.">underlined</span>; you can mouse over them for a
+      definition.  You can reset your changes to an example by clicking
+      the {wTurnstile} symbol (⊢).</p>
 
-      <p><b>Sequents.</b> Below is a <span title="A statement consisting
-      of a list of hypotheses, a turnstile (⊢), and a list of
-      conclusions.">sequent</span>.  You can interact with it by
-      clicking on the Γ or the Δ, which are <i>clauses</i>, but for this
+      <p><b>Sequents.</b> Below is a {wSequent}.  You can interact with it by
+      clicking on the Γ or the Δ, which are {wClause}s, but for this
       particular example, you will get errors, because there are no
       valid deductions for this sequent.  The sequent reads as "Γ
-      implies Δ": the turnstile represents one-way implication.</p>
+      implies Δ": the {wTurnstile} can be thought of as a sort of {wImplication}.</p>
 
       {exBasic.Widget}
 
-      <p><b>Axioms.</b> Here is a sequent which can make progress. When
+      <p><b>Axioms.</b> Here is a {wSequent} which can make {wProgress}. When
       you click on the A, a bar appears on top. This bar is conventional
-      notation which says that the sequent is axiomatically true (we can
-      assume it without proof).  The only axioms in this system are when
-      some <i>atomic clause</i> (clause containing no logical operators)
-      appears on both sides of the turnstile.  A proof is complete when
-      all sequents have bars over them.</p>
+      notation which says that the sequent is <span title="That is, we
+      can assume it is true without proof.">axiomatically true</span>.
+      The only axioms in this system are when some {wAtomicClause}
+      appears on both sides of the {wTurnstile}.  A proof is complete
+      when all sequents have bars over them.</p>
 
       {exAxiom.Widget}
 
-      <p><b>Hypotheses on the left.</b> Read the following sequent as "Γ and A imply A."
+      <p><b>Hypotheses on the left.</b> Read the following {wSequent} as "Γ and A imply A."
       If you click on A, you will successfully complete the proof, but if you click
       on Γ, you will fail (because it is not a conclusion you are proving.)</p>
 
       {exLeft.Widget}
 
       <p><b>Conclusions on the right.</b>  Read the following sequent as
-      "A implies A or Δ".  (Yes, comma means conjunction (AND) on the
-      left, and disjunction (OR) on the right. Blame the
-      mathematicians.)</p>
+      "A implies A or Δ".  (Yes, comma means {wConjunction} on the
+      left, and {wDisjunction} on the right. This is the conventional notation.)</p>
 
       {exRight.Widget}
 
-      <p><b>Backwards deduction.</b>  Up until now, clicking on a clause has either
-      told us "this sequent is axiomatically true" (completing the
+      <p><b>Backwards deduction.</b>  Up until now, clicking on a {wClause} has either
+      told us "this {wSequent} is axiomatically true" (completing the
       proof) or given us an error.  These make for very boring proofs:
-      what about logical operators?  When you click on a clause that contains
-      a logical operator, the system generates one or more further goals,
+      what about {wLogicalOperator}s?  When you click on a clause that contains
+      a logical operator, the system generates one or more further {wGoal}s,
       which you need to prove.  It's its way of saying, "In order to show
       A ∨ B ⊢ C is true, you need to show A ⊢ C is true and B ⊢ C is true."
-      Notice that in both of the subgoals, there no longer is an OR; in
-      sequent calculus, we use backwards deduction to get rid of logical
-      operators until we have atomic clauses.</p>
+      Notice that in both of the subgoals, there no longer is a {wDisjunction}; in
+      sequent calculus, we use {wBackwardsDeduction} to get rid of logical
+      operators until we have {wAtomicClause}s.</p>
 
       {exDeduction.Widget}
 
       <p><b>Inference rules.</b>  Now, it is great that the computer has
-      told you what new goals you need to prove, but what if you wanted
-      to write out the proof by hand?  You need to know what to write down.
-      Fortunately, for each logical operator, there are exactly two <i>inference
-      rules</i> which say what new goals are generated: one for when it's
-      on the left side of the turnstile (hypothesis), and one when it's on the right
-      (conclusion).  Here is the inference rule for disjunction on the left: the Γ and Δ are
-      conventionally placeholders for other hypotheses and conclusions which
-      are not affected by the inference rule.</p>
+      told you what new {wGoal}s you need to prove, but what if you
+      wanted to write out the proof by hand?  You need to know what to
+      write down.  Fortunately, for each {wLogicalOperator}, there are
+      exactly two {wInferenceRule}s which say what new goals are
+      generated: one for when it's on the left side of the {wTurnstile}
+      (hypothesis), and one when it's on the right (conclusion).  Here
+      is the inference rule for {wDisjunction} on the left: the Γ and Δ are
+      conventionally placeholders for other hypotheses and conclusions
+      which are not affected by the inference rule.</p>
 
       {exLDisjFull.Widget}
 
       <p>The small text on the right of the bar indicates what rule was
-      applied: the first letter indicates the logical connective
+      applied: the first letter indicates the logical operator
       involved, and the second letter indicates <b>l</b>eft or
       <b>r</b>ight.  We'll now go on a tour of all the inference rules
       in first-order logic.</p>
 
       <p><b>Trivial rules.</b>  Recall that all of the hypotheses on the
-      left side of the turnstile can be thought of as ANDed together, and
+      left side of the {wTurnstile} can be thought of as ANDed together, and
       the conclusions on the right side ORed together.  Thus, if I have a hypothesis
       which is an AND, or a conclusion which is an OR, we can very easily get
       rid of the identifier.</p>
@@ -586,7 +650,7 @@ fun tutorial () =
         </tr>
       </table>
 
-      <p><b>Meta-implication rule.</b>  The turnstile itself can be thought
+      <p><b>Meta-implication rule.</b>  The {wTurnstile} itself can be thought
       of as implication, so to prove A → B, I can assume A as a hypothesis
       and prove B instead ("moving" the clause to the left side of the turnstile.)</p>
 
@@ -595,13 +659,13 @@ fun tutorial () =
       <p>It's worth noting that, because this is classical logic, you can use
       any hypothesis generated this way for any other conclusion (a sort
       of "bait and switch").  It's worth taking some time to convince yourself why this
-      is allowed, since it shows up in other inference rules too.  Here is a simple example of this:</p>
+      is allowed, since it shows up in other {wInferenceRule}s too.  Here is a simple example of this:</p>
 
       {exRImpClassical.Widget}
 
-      <p><b>Branching rules.</b>  What about conjunction, disjunction and implication
-      on the other side of the turnstile?  All of these generate <i>two</i> new
-      goals, both of which need to be proved.  Convince yourself that these
+      <p><b>Branching rules.</b>  What about {wConjunction}, {wDisjunction} and {wImplication}
+      on the other side of the {wTurnstile}?  All of these generate <i>two</i> new
+      {wGoal}s, both of which need to be proved.  Convince yourself that these
       inference rules work.</p>
 
       <table class={centerTable}>
@@ -614,7 +678,7 @@ fun tutorial () =
         </tr>
       </table>
 
-      <p><b>Negation rules.</b> Negation is a strange connective: applying its inference
+      <p><b>Negation rules.</b> Negation is a strange operator: applying its inference
       rule moves the un-negated clause to the other side of the turnstile.</p>
 
       <table class={centerTable}>
@@ -634,7 +698,7 @@ fun tutorial () =
       {exRNotImp.Widget}
 *)
 
-      <p><b>Quantifier rules.</b> The rules for the quantifiers are
+      <p><b>Quantifier rules.</b> The rules for the {wQuantifier}s are
       particularly interesting.  Try clicking on these four rules:</p>
 
       <table class={centerTable}>
@@ -685,7 +749,7 @@ fun tutorial () =
       <tr><td>{infLExists.Widget}</td><td>{infRExists.Widget}</td></tr>
       </table>
 
-      <p>With these inference rules, you now have the capability to
+      <p>With these {wInferenceRule}s, you now have the capability to
       prove everything in first-order logic!  The next section will
       contain some exercises for you to try.</p>
 

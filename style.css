@@ -37,4 +37,6 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .proofIsPending .proof {background:#FCFCBB;}
 .proofIsIncomplete .proof {}
 
+.explained {border-bottom:dotted 1px #444;}
+
 sub {font-size:0.6em;}
