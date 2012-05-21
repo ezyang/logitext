@@ -47,7 +47,7 @@ serialize ctx m = lazyByteStringToUrWebCString ctx . E.encode . toJSON =<< resul
 -- (f =<< peekUTF8String cs)
 
 initFFI :: IO ()
-initFFI = evaluate theCoq >> return ()
+initFFI = forkIO (evaluate theCoq >> return ()) >> return ()
 
 startFFI :: Ptr UrwebContext -> CString -> IO CString
 startFFI ctx s = serialize ctx (start =<< peekUTF8String s)

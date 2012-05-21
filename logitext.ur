@@ -1,4 +1,6 @@
 style proof
+style proofIsDone
+style proofIsIncomplete
 style rules
 style inference
 style tagBox
@@ -154,6 +156,44 @@ structure Proof = Json.Recursive(struct
     end
 end)
 type proof = Proof.r
+
+fun andB a b = if a then b else False
+
+fun proofComplete (Proof.Rec p) : bool =
+    match p {Goal = fn _ => False,
+             Pending = fn _ => False,
+             Proof = fn (_, t) =>
+                let fun empty _ = True
+                    fun single (_, a) = proofComplete a
+                    fun singleQ (_, _, a) = proofComplete a
+                    fun double (_, a, b) = andB (proofComplete a) (proofComplete b)
+                in match t {Cut       = fn (_, a, b) => andB (proofComplete a) (proofComplete b),
+                            LExact    = empty,
+                            LBot      = empty,
+                            RExact    = empty,
+                            RTop      = empty,
+                            LConj     = single,
+                            LNot      = single,
+                            LExists   = single,
+                            LContract = single,
+                            LWeaken   = single,
+                            LTop      = single,
+                            RDisj     = single,
+                            RImp      = single,
+                            RNot      = single,
+                            RBot      = single,
+                            RForall   = single,
+                            RContract = single,
+                            RWeaken   = single,
+                            LForall   = singleQ,
+                            RExists   = singleQ,
+                            LDisj     = double,
+                            LImp      = double,
+                            RConj     = double
+                            }
+                end
+             }
+
 fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
         fun makePendingU prompter (f : universe -> tactic int) (g : tactic int) : transaction unit =
@@ -269,11 +309,13 @@ fun zapStart x : transaction string = return (Haskell.start x)
 
 val head = <xml><link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" /></xml>
 
-fun handleResultProof handler v err (z : string) =
-    let fun showError e = set err <xml><div class={error}>{[e]}</div></xml>
-        val clearError = set err <xml></xml>
+fun handleResultProof handler v proofStatus err (z : string) =
+    let val clearError = set err <xml></xml>
+        fun showError e = set err <xml><div class={error}>{[e]} <button onclick={clearError} value="Dismiss" /></div></xml>
     in match (fromJson z : result proof)
-        { Success = fn r => clearError; bind (renderProof handler r) (set v)
+        { Success = fn r => clearError;
+                            bind (renderProof handler r) (set v);
+                            set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
         , EndUserFailure = fn e => match e
             { UpdateFailure = fn () => showError "The inference you attempted to make is invalid."
             , ParseFailure = fn () => showError "Parse failure; check your syntax."
@@ -282,30 +324,37 @@ fun handleResultProof handler v err (z : string) =
         }
     end
 
-fun mkWorkspaceRaw mproof =
+fun mkWorkspaceRaw showErrors mproof =
   v <- source <xml></xml>;
   err <- source <xml></xml>;
-  let fun handler x = bind (rpc (zapRefine x)) (handleResultProof handler v err)
+  proofStatus <- source proofIsIncomplete;
+  let fun handler x = bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
   in return {
-    Onload = bind mproof (handleResultProof handler v err),
+    Onload = bind mproof (handleResultProof handler v proofStatus err),
     Widget = <xml>
           <div class={working}>
+            <div dynClass={signal proofStatus}>
               <div class={proof}>
                 <dyn signal={signal v}/>
               </div>
+            </div>
           </div>
-          <dyn signal={signal err}/>
+          {if showErrors then <xml><dyn signal={signal err}/></xml> else <xml></xml>}
     </xml>
     }
   end
 
-fun mkWorkspace goal = mkWorkspaceRaw (rpc (zapStart goal))
-fun mkExample proof = mkWorkspaceRaw (return proof)
+fun mkWorkspace goal = mkWorkspaceRaw True (rpc (zapStart goal))
+fun mkExample proof = mkWorkspaceRaw False (return proof)
 
 fun tutorial () =
-  exSequent <- mkWorkspace "A, B |- C, D";
+  exBasic <- mkWorkspace "Γ |- Δ";
+  exSequent <- mkWorkspaceRaw False (rpc (zapStart "A, B |- C, D"));
   (* XXX ewwwwwww *)
-  exAxiom <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}";
+  exAxiom <- mkWorkspace "A |- A";
+  exAxiomDone <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}";
+  exLeft <- mkWorkspace "Γ, A |- A";
+  exRight <- mkWorkspace "A |- A, Δ";
   (*
     (Proof.Rec (make [#Proof] (
         {Hyps = Cons (Logic.Rec (make [#Pred] ("A", Nil)), Nil), Cons = Cons (Logic.Rec (make [#Pred] ("A", Nil)), Nil)},
@@ -334,13 +383,14 @@ fun tutorial () =
   exDeMorgan <- mkWorkspace "~(A \/ B) -> ~A /\ ~B";
   exForallDist <- mkWorkspace "(forall x. P(x)) /\ (forall x. Q(x)) -> forall y. P(y) /\ Q(y)";
   exForallContract <- mkWorkspace "forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))";
-  solvedForallContract <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}}}}}],\"hyps\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}}]},\"2\":{\"LContract\":{\"1\":0,\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}}}}}],\"hyps\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}}]},\"2\":{\"RForall\":{\"1\":0,\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}}}],\"hyps\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}}]},\"2\":{\"RImp\":{\"1\":0,\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}],\"hyps\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}}]},\"2\":{\"LForall\":{\"1\":1,\"3\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}],\"hyps\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}}]},\"2\":{\"LImp\":{\"1\":1,\"3\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}],\"hyps\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}}]},\"2\":{\"LForall\":{\"1\":2,\"3\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}],\"hyps\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}},{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}}}]},\"2\":{\"LImp\":{\"1\":2,\"3\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}],\"hyps\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}]},\"2\":{\"LExact\":2}}},\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}],\"hyps\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}]},\"2\":{\"LExact\":1}}}}}}},\"2\":{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}}},\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}]}}],\"hyps\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"f\",\"2\":[{\"1\":\"x\",\"2\":[]}]}]}}}}}}]},\"2\":{\"RExact\":0}}}}}}},\"2\":{\"1\":\"x\",\"2\":[]}}}}}}}}}}}}}}}}}}";
   return <xml>
   <head>
-    <title>Tutorial</title>
+    <title>Tutorial on Sequent Calculus and First-Order Logic</title>
     {head}
   </head>
-  <body onload={exSequent.Onload; exAxiom.Onload; exAOrNotA.Onload; exAOrNotADone.Onload; exLDisj.Onload;
+  <body onload={
+    exBasic.Onload; exAxiom.Onload; exAxiomDone.Onload; exLeft.Onload; exRight.Onload;
+    exSequent.Onload; exAOrNotA.Onload; exAOrNotADone.Onload; exLDisj.Onload;
     infAxiom.Onload; infLConj.Onload; infRConj.Onload; infLImp.Onload; infRImp.Onload;
     infLDisj.Onload; infRDisj.Onload; infLNot.Onload; infRNot.Onload; infLForall.Onload; infRForall.Onload;
     infLExists.Onload; infRExists.Onload; exForallIdentity.Onload; exAndIdentity.Onload; exOrIdentity.Onload;
@@ -348,11 +398,10 @@ fun tutorial () =
   }>
     <div class={page}>
 
-      <p><i>This interactive tutorial is intended to explain what first-order
-      logic and the sequent calculus
-      are to an interested software engineer who has
-      some familiarity with basic logic, but no experience with formal
-      logic.</i></p>
+      <p><i>This interactive tutorial is intended to explain what
+      first-order logic and the sequent calculus are to an interested
+      software engineer who has some familiarity with basic logic, but
+      no experience with formal logic.</i></p>
 
       <h2>Motivation</h2>
 
@@ -376,11 +425,16 @@ fun tutorial () =
       is a man, and <i>Q</i> is true if <i>x</i> is mortal.  Use of quantifiers
       takes us from Boolean logic to first-order logic.</p>
 
-      <p>However, now there's a problem: we can't figure out if something is true
-      anymore by writing out the truth table.  When a quantifier is involved, there
-      may be infinitely many values of <i>x</i> in the world, and we can't check
-      if something is true for each one.  So we need another way of reasoning
-      about statements in first-order logic.</p>
+      <p>However, now there's a problem: we can't figure out if
+      something is true anymore by writing out the truth table.  When a
+      quantifier is involved, there may be infinitely many values of
+      <i>x</i> in the world, and we can't check if something is true for
+      each one.  So we need another way of reasoning about statements in
+      first-order logic.  In this tutorial, we'll focus on the question:
+      when is a statement in first-order logic <i>valid</i>, that is, it
+      is true no matter what predicates or individuals are involved.
+      Such statements make up the <i>tautologies</i> (trivially true
+      statements) of first-order logic.</p>
 
       <p>The sequent calculus is one such way of reasoning about statements in
       first-order logic.  It sets up a formal system (similar to
@@ -390,38 +444,64 @@ fun tutorial () =
       derive any true statement in first-order logic (this property is called
       completeness.)</p>
 
-      <p>Sequent calculus of first-order logic is worth studying for various
-      reasons.  One is that it is very beautiful, in much the same way that
-      other work in the foundations of mathematics is.  Another is that the
-      notation used for writing down sequents is relied upon heavily
-      in the type theory literature, and knowing how to read inference
-      rules is an essential skill if you want to "read the Greek."  And finally,
-      first-order logic itself is well worth knowing, because it sets the
-      stage for more advanced, higher-order logics, and is also the key
-      principle behind many of the powerful computational tools we have,
-      such as SMT solvers.</p>
+      <p>First-order logic is well worth studying, because it is a
+      simple yet powerful tool for modelling the world and writing
+      specifications and constraints.  These constraints can be given to
+      tools called SMT solvers, which can then automatically determine
+      how to satisfy these constraints.  You can't do that with plain
+      English!</p>
+
+      <p>The sequent calculus is one tool for understanding how
+      first-order logic works on the inside.  It doesn't quite map to
+      how humans usually reason about logic, but it is very simple to
+      apply, which makes it useful when your intuition is broken.
+      However, perhaps more importantly, the notation and concepts
+      introduced in sequent calculus are relied upon heavily in the
+      academic type theory literature, where inference rules are
+      considerably more complicated.  Studying how to understand these
+      rules in a simpler setting is essential to being able to "read the
+      Greek."  But even if you're not an academic, inference rules are
+      a remarkably quick way to understand the type systems of languages.</p>
 
       <h2>How it works</h2>
 
-      <p>Sequent calculus is centered around the sequent, which looks like this:</p>
+      <p>All of the examples in this document are interactive.</p>
 
-      {exSequent.Widget}
+      <p><b>Sequents.</b> Below is a sequent.  You can interact with it by clicking
+      on the Γ or the Δ, which are <i>clauses</i>, but for this
+      particular example, you will get errors, because there are no
+      valid deductions for this sequent.  The sequent reads as "Γ
+      implies Δ"; the symbol ⊢ is often called a <i>turnstile</i>.</p>
 
-      <p>The turnstile (⊢) divides the sequent into hypotheses on the left, and
-      conclusions on the right.  You can read the sequent as "If A and B, then
-      C or D" (e.g. commas on the left-hand side are conjunction, commas
-      on the right-hand side are disjunction, and the turnstile is implication.)
-      The reason for these "meta" connectives may not quite be clear at
-      the moment, but for now just accept that they exist.</p>
+      {exBasic.Widget}
 
-      <p>If a statement is axiomatically true (that is, we can assume them without
-      proof), we put a bar on top of it, as such:</p>
+      <p><b>Axioms.</b> Here is a sequent which can make progress. When
+      you click on the A, a bar appears on top, which indicates that the
+      sequent is axiomatically true: we can assume it without proof.
+      The only axioms in this system are when some <i>atomic clause</i>
+      (clause containing no logical operators) appears on both sides of
+      the turnstile.  A proof is complete when all sequents have bars
+      over them.</p>
 
       {exAxiom.Widget}
 
-      <p>The only axioms in sequent calculus are sequents where a proposition
-      appears on both the left side and the right side, e.g. tautologies "If
-      A, then A."</p>
+      <p><b>Hypotheses on the left.</b> Read the following sequent as "Γ and A imply A."
+      If you click on A, you will successfully complete the proof, but if you click
+      on Γ, you will fail (because it is not a conclusion you are proving.)</p>
+
+      {exLeft.Widget}
+
+      <p><b>Conclusions on the right.</b>  Read the following sequent as
+      "A implies A or Δ".  (Yes, comma means conjunction (AND) on the
+      left, and disjunction (OR) on the right. Blame the
+      mathematicians.)</p>
+
+      {exRight.Widget}
+
+      <p><b>Inference rules.</b>  We haven't seen any logical operators
+      in our sequents, and up until now, clicking on a clause has either
+      told us "this sequent is axiomatically true" (completing the
+      proof) or given us an error.</p>
 
       <p>The real meat of sequent calculus has to do with inference rules which
       let us handle sequents which are not axiomatically true.  Here is an example
@@ -543,8 +623,8 @@ and proving goal =
           (you can also choose to duplicate the rules by clicking "Contract").
           If that made no sense to you, check out <a link={tutorial ()}>the tutorial</a>.
           Or, you can <a link={main ()}>return to main page...</a></p>
+          {wksp.Widget}
         </div>
-        {wksp.Widget}
         </body>
       </xml>
       (* XXX initially, the proof box should glow, so the user nows that this is special *)

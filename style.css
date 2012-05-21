@@ -5,8 +5,8 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .zeropoint { z-index: 10; }
 .viewport { height:500px; width:800px; overflow:hidden; border:1px #CCC solid; text-align:center; }
 
-.working { text-align:center; margin-top:1em; }
-.proof { display:inline-block; white-space:nowrap; }
+.working { text-align:center; }
+.proof { display:inline-block; white-space:nowrap; padding-left: 2.4em; padding-top:1em; padding-bottom:1em; }
 .proof table { width:100%; border-collapse:collapse; margin: auto; }
 .proof td { padding:0; border:0; margin:0; text-align:center; }
 .proof .sibling { display: inline-block; vertical-align:bottom; }
@@ -23,8 +23,12 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 
 /* hat tip http://stackoverflow.com/questions/6040005/relatively-position-an-element-without-it-taking-up-space-in-document-flow */
 .relMark {position:relative; width:0; height:0; display:inline;}
-.offsetBox {position:absolute; z-index:1; top:0.2em; left:-1em; background:#FFF; width:13em;}
+.offsetBox {position:absolute; z-index:1; top:0.2em; left:-1em; background-color:inherit; width:13em;}
+.offsetToolbox {position:absolute; z-index:1; top:0; right:0; width:15em;}
 
 .error {margin-top:1em; border:1px solid #900; padding:0.2em; background: #F99; }
 
 .rules {margin:1em auto;}
+
+.proofIsDone .proof {background:#CFC;}
+.proofIsIncomplete .proof {}
