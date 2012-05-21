@@ -16,6 +16,7 @@ style working
 style page
 style error
 style turnstile
+style centerTable
 
 open Json
 
@@ -507,12 +508,12 @@ fun tutorial () =
       {exBasic.Widget}
 
       <p><b>Axioms.</b> Here is a sequent which can make progress. When
-      you click on the A, a bar appears on top, which indicates that the
-      sequent is axiomatically true: we can assume it without proof.
-      The only axioms in this system are when some <i>atomic clause</i>
-      (clause containing no logical operators) appears on both sides of
-      the turnstile.  A proof is complete when all sequents have bars
-      over them.</p>
+      you click on the A, a bar appears on top. This bar is conventional
+      notation which says that the sequent is axiomatically true (we can
+      assume it without proof).  The only axioms in this system are when
+      some <i>atomic clause</i> (clause containing no logical operators)
+      appears on both sides of the turnstile.  A proof is complete when
+      all sequents have bars over them.</p>
 
       {exAxiom.Widget}
 
@@ -548,7 +549,7 @@ fun tutorial () =
       Fortunately, for each logical operator, there are exactly two <i>inference
       rules</i> which say what new goals are generated: one for when it's
       on the left side of the turnstile (hypothesis), and one when it's on the right
-      (conclusion).  Here is the inference rule for deduction: the Γ and Δ are
+      (conclusion).  Here is the inference rule for disjunction on the left: the Γ and Δ are
       conventionally placeholders for other hypotheses and conclusions which
       are not affected by the inference rule.</p>
 
@@ -566,8 +567,12 @@ fun tutorial () =
       which is an AND, or a conclusion which is an OR, we can very easily get
       rid of the identifier.</p>
 
-      {exLConj.Widget}
-      {exRDisj.Widget}
+      <table class={centerTable}>
+        <tr>
+          <td>{exLConj.Widget}</td>
+          <td>{exRDisj.Widget}</td>
+        </tr>
+      </table>
 
       <p><b>Meta-implication rule.</b>  The turnstile itself can be thought
       of as implication, so to prove A → B, I can assume A as a hypothesis
@@ -587,15 +592,25 @@ fun tutorial () =
       goals, both of which need to be proved.  Convince yourself that these
       inference rules work.</p>
 
-      {exRConj.Widget}
-      {exLDisj.Widget}
-      {exLImp.Widget}
+      <table class={centerTable}>
+        <tr>
+          <td>{exRConj.Widget}</td>
+          <td>{exLDisj.Widget}</td>
+        </tr>
+        <tr>
+          <td colspan=2>{exLImp.Widget}</td>
+        </tr>
+      </table>
 
       <p><b>Negation rules.</b> Negation is a strange connective: applying its inference
       rule moves the un-negated clause to the other side of the turnstile.</p>
 
-      {exLNot.Widget}
-      {exRNot.Widget}
+      <table class={centerTable}>
+        <tr>
+          <td>{exLNot.Widget}</td>
+          <td>{exRNot.Widget}</td>
+        </tr>
+      </table>
 
 (* XXX FastCGI hates me, throws unurlification errors
       <p>An easy way to see why this is true is to observe that ¬A is equivalent to A → ⊥,
@@ -610,19 +625,27 @@ fun tutorial () =
       <p><b>Quantifier rules.</b> The rules for the quantifiers are
       particularly interesting.  Try clicking on these four rules:</p>
 
-      {exLForall.Widget}
-      {exRForall.Widget}
-      {exLExists.Widget}
-      {exRExists.Widget}
+      <table class={centerTable}>
+        <tr>
+          <td>{exLForall.Widget}</td>
+          <td>{exRForall.Widget}</td>
+        </tr>
+        <tr>
+          <td>{exLExists.Widget}</td>
+          <td>{exRExists.Widget}</td>
+        </tr>
+      </table>
 
       <p>In the case of the left-forall rule and the right-exists rule, you (the prover) get to pick what
       to replace <i>x</i> with.  This can be any lower-case symbol which already
       appears in the sequent, or <i>z</i> (which is always available.)</p>
 
-      <p>In the case of the right-forall rule and the left-exists rule, the system picks a
-      variable. It is mean, and will always pick something distinct from anything
-      existing in the sequent. It's generally a good idea to apply these two rules
-      first, as seen by this example:</p>
+      <p>In the case of the right-forall rule and the left-exists rule,
+      the system picks a variable. The rules of logic demand that it
+      always pick something distinct from anything existing in the
+      sequent: this is often referred to as the "no free occurrence"
+      rule). It's generally a good idea to apply these two rules first,
+      as seen by this example:</p>
 
       {exForallIdentity.Widget}
 
@@ -650,8 +673,8 @@ fun tutorial () =
       </table>
 
       <p>With these inference rules, you now have the capability to
-      prove everything in first-order logic!  The next section will contain some exercises
-      for you to try.</p>
+      prove everything in first-order logic!  The next section will
+      contain some exercises for you to try.</p>
 
       <h2>Exercises</h2>
 
