@@ -85,6 +85,7 @@ data L = Pred PredV [U] -- could be (Pred "A" [])
        | Conj L L
        | Disj L L
        | Imp L L
+       | Iff L L
        | Not L
        | Top
        | Bot
@@ -115,6 +116,7 @@ freeL b l = case l of
     Conj x y -> freeUnion (freeL b x) (freeL b y)
     Disj x y -> freeUnion (freeL b x) (freeL b y)
     Imp x y -> freeUnion (freeL b x) (freeL b y)
+    Iff x y -> freeUnion (freeL b x) (freeL b y)
     Not x -> freeL b x
     Top -> freeEmpty
     Bot -> freeEmpty
@@ -131,6 +133,7 @@ inferType x l = case l of
     Conj a b -> trivialUnify (inferType x a) (inferType x b)
     Disj a b -> trivialUnify (inferType x a) (inferType x b)
     Imp a b -> trivialUnify (inferType x a) (inferType x b)
+    Iff a b -> trivialUnify (inferType x a) (inferType x b)
     Not a -> inferType x a
     Top -> Nothing
     Bot -> Nothing
@@ -150,6 +153,7 @@ instance CoqTerm L where
     toCoq (Conj a b) = C.App (C.Atom "and") [toCoq a, toCoq b]
     toCoq (Disj a b) = C.App (C.Atom "or") [toCoq a, toCoq b]
     toCoq (Imp a b) = C.Forall [("_", toCoq a)] (toCoq b)
+    toCoq (Iff a b) = C.App (C.Atom "iff") [toCoq a, toCoq b]
     toCoq (Not a) = C.App (C.Atom "not") [toCoq a]
     toCoq Top = C.Atom "True"
     toCoq Bot = C.Atom "False"
@@ -164,6 +168,8 @@ instance CoqTerm L where
         f (C.Typed t _) = f t
         f (C.App (C.Atom "ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f t)
         f (C.App (C.Atom "ex") _) = errorModule "L.fromCoq App ex"
+        f (C.App (C.Atom "iff") [t1, t2]) = Iff (f t1) (f t2)
+        f (C.App (C.Atom "iff") _) = errorModule "L.fromCoq App iff"
         f (C.App (C.Atom "and") [t1, t2]) = Conj (f t1) (f t2)
         f (C.App (C.Atom "and") _) = errorModule "L.fromCoq App and"
         f (C.App (C.Atom "or") [t1, t2]) = Disj (f t1) (f t2)
@@ -216,6 +222,7 @@ data Q a = Cut L a a
          | LConj Int a
          | LDisj Int a a
          | LImp Int a a
+         | LIff Int a
          | LBot Int
          | LTop Int a
          | LNot Int a
@@ -227,6 +234,7 @@ data Q a = Cut L a a
          | RConj Int a a
          | RDisj Int a
          | RImp Int a
+         | RIff Int a a
          | RBot Int a
          | RTop Int
          | RNot Int a
@@ -251,6 +259,7 @@ freeQ b f q = case q of
     LConj _ x -> f x
     LDisj _ x y -> msetUnion (f x) (f y)
     LImp _ x y -> msetUnion (f x) (f y)
+    LIff _ x -> f x
     LBot _ -> Map.empty
     LTop _ x -> f x
     LNot _ x -> f x
@@ -264,6 +273,7 @@ freeQ b f q = case q of
     RConj _ x y -> msetUnion (f x) (f y)
     RDisj _ x -> f x
     RImp _ x -> f x
+    RIff _ x y -> msetUnion (f x) (f y)
     RBot _ x -> f x
     RTop _ -> Map.empty
     RNot _ x -> f x
@@ -286,6 +296,7 @@ preorder fp fq a = tp a
     tq q@(LConj n x)    = LConj n <$ fq q <*> tp x
     tq q@(LDisj n x y)  = LDisj n <$ fq q <*> tp x <*> tp y
     tq q@(LImp n x y)   = LImp n <$ fq q <*> tp x <*> tp y
+    tq q@(LIff n x)     = LIff n <$ fq q <*> tp x
     tq q@(LBot n)       = LBot n <$ fq q
     tq q@(LTop n x)     = LTop n <$ fq q <*> tp x
     tq q@(LNot n x)     = LNot n <$ fq q <*> tp x
@@ -297,6 +308,7 @@ preorder fp fq a = tp a
     tq q@(RConj n x y)  = RConj n <$ fq q <*> tp x <*> tp y
     tq q@(RDisj n x)    = RDisj n <$ fq q <*> tp x
     tq q@(RImp n x)     = RImp n <$ fq q <*> tp x
+    tq q@(RIff n x y)   = RIff n <$ fq q <*> tp x <*> tp y
     tq q@(RBot n x)     = RBot n <$ fq q <*> tp x
     tq q@(RTop n)       = RTop n <$ fq q
     tq q@(RNot n x)     = RNot n <$ fq q <*> tp x
@@ -319,6 +331,7 @@ qToTac (LExact n) = Tac "lExact" [hyp n]
 qToTac (LConj n _) = Tac "lConj" [hyp n]
 qToTac (LDisj n _ _) = Tac "lDisj" [hyp n]
 qToTac (LImp n _ _) = Tac "lImp" [hyp n]
+qToTac (LIff n _) = Tac "lIff" [hyp n]
 qToTac (LBot n) = Tac "lBot" [hyp n]
 qToTac (LTop n _) = Tac "lTop" [hyp n]
 qToTac (LNot n _) = Tac "lNot" [hyp n]
@@ -330,6 +343,7 @@ qToTac (RExact n) = Tac "rExact" [con n]
 qToTac (RConj n _ _) = Tac "rConj" [con n]
 qToTac (RDisj n _) = Tac "rDisj" [con n]
 qToTac (RImp n _) = Tac "rImp" [con n]
+qToTac (RIff n _ _) = Tac "rIff" [con n]
 qToTac (RTop n) = Tac "rTop" [con n]
 qToTac (RBot n _) = Tac "rBot" [con n]
 qToTac (RNot n _) = Tac "rNot" [con n]
@@ -471,6 +485,7 @@ refine' sequent@(S hs cs) pTop = withMVar theCoq $ \f -> do
                 qNum LConj{} = 1
                 qNum LDisj{} = 2
                 qNum LImp{} = 2
+                qNum LIff{} = 1
                 qNum LBot{} = 0
                 qNum LTop{} = 1
                 qNum LNot{} = 1
@@ -482,6 +497,7 @@ refine' sequent@(S hs cs) pTop = withMVar theCoq $ \f -> do
                 qNum RConj{} = 2
                 qNum RDisj{} = 1
                 qNum RImp{} = 1
+                qNum RIff{} = 2
                 qNum RTop{} = 0
                 qNum RBot{} = 1
                 qNum RNot{} = 1
@@ -532,7 +548,8 @@ folStyle = emptyDef
                     "~","¬"]
                 , P.reservedNames   =
                     [
-                    "exists","forall","∀","∃","fun","True","False","⊤","⊥"
+                    "exists","forall","∀","∃","fun","True","False","⊤","⊥",
+                    "and", "or", "ex", "iff", "not"
                     ]
                 , P.caseSensitive   = True
                 }
@@ -576,7 +593,7 @@ sequent =  try (S <$> commaSep expr <* choice [reservedOp "|-", reservedOp "⊢"
 table   = [ [prefix "~" Not, prefix "¬" Not ]
           , [binary "/\\" Conj AssocLeft, binary "∧" Conj AssocLeft ]
           , [binary "\\/" Disj AssocLeft, binary "∨" Disj AssocLeft ]
-          , [binary "->" Imp AssocRight, binary "→" Imp AssocRight ]
+          , [binary "->" Imp AssocRight, binary "→" Imp AssocRight, binary "<->" Iff AssocRight, binary "↔" Iff AssocRight ]
           ]
 
 binary  name fun assoc = Infix (do{ reservedOp name; return fun }) assoc

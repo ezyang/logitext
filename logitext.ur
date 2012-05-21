@@ -47,6 +47,7 @@ structure Logic = Json.Recursive(struct
                      Conj = a * a,
                      Disj = a * a,
                      Imp = a * a,
+                     Iff = a * a,
                      Not = a,
                      Top = unit,
                      Bot = unit,
@@ -56,7 +57,7 @@ structure Logic = Json.Recursive(struct
     let val json_pred : json (string * list universe) = json_record ("1", "2")
         val json_compound : json (a * a) = json_record ("1", "2")
         val json_quantifier : json (string * a) = json_record ("1", "2")
-    in json_variant {Pred = "Pred", Conj = "Conj", Disj = "Disj", Imp = "Imp",
+    in json_variant {Pred = "Pred", Conj = "Conj", Disj = "Disj", Imp = "Imp", Iff = "Iff",
           Not = "Not", Top = "Top", Bot = "Bot", Forall = "Forall", Exists = "Exists"}
     end
 end)
@@ -73,6 +74,7 @@ fun renderLogic p ((Logic.Rec r) : logic) : xbody = match r
    Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic 3 a} ∧ {renderLogic 3 b}</xml>,
    Disj = fn (a, b) => renderParen (p>2) <xml>{renderLogic 2 a} ∨ {renderLogic 2 b}</xml>,
    Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic 2 a} → {renderLogic 1 b}</xml>,
+   Iff = fn (a, b) => renderParen (p>1) <xml>{renderLogic 2 a} ↔ {renderLogic 2 b}</xml>,
    Not = fn a => renderParen (p>4) <xml>¬{renderLogic 5 a}</xml>,
    Top = fn _ => <xml>⊤</xml>,
    Bot = fn _ => <xml>⊥</xml>,
@@ -90,6 +92,7 @@ con tactic a = variant [Cut = logic * a * a,
                         LConj = int * a,
                         LDisj = int * a * a,
                         LImp = int * a * a,
+                        LIff = int * a,
                         LBot = int,
                         LTop = int * a,
                         LNot = int * a,
@@ -101,6 +104,7 @@ con tactic a = variant [Cut = logic * a * a,
                         RConj = int * a * a,
                         RDisj = int * a,
                         RImp = int * a,
+                        RIff = int * a * a,
                         RTop = int,
                         RBot = int * a,
                         RNot = int * a,
@@ -114,9 +118,9 @@ fun json_tactic [a] (_ : json a) : json (tactic a) =
       val json_double : json (int * a * a) = json_record ("1", "2", "3")
       val json_instance : json (int * universe * a) = json_record ("1", "2", "3")
   in json_variant {Cut = "Cut", LExact = "LExact", LConj = "LConj", LDisj = "LDisj",
-        LImp = "LImp", LBot = "LBot", LTop = "LTop", LNot = "LNot", LForall = "LForall", LExists = "LExists",
+        LImp = "LImp", LIff = "LIff", LBot = "LBot", LTop = "LTop", LNot = "LNot", LForall = "LForall", LExists = "LExists",
         LContract = "LContract", LWeaken = "LWeaken", RExact = "RExact", RConj = "RConj", RDisj = "RDisj",
-        RImp = "RImp", RTop = "RTop", RBot = "RBot", RNot = "RNot", RForall = "RForall", RExists = "RExists",
+        RImp = "RImp", RIff = "RIff", RTop = "RTop", RBot = "RBot", RNot = "RNot", RForall = "RForall", RExists = "RExists",
         RWeaken = "Rweaken", RContract = "RContract"}
   end
 
@@ -127,6 +131,7 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , LConj      = fn _ => "(∧l)"
    , LDisj      = fn _ => "(∨l)"
    , LImp       = fn _ => "(→l)"
+   , LIff       = fn _ => "(↔l)"
    , LBot       = fn _ => ""
    , LTop       = fn _ => ""
    , LNot       = fn _ => "(¬l)"
@@ -138,6 +143,7 @@ fun tacticRenderName [a] (t : tactic a) : string = match t
    , RConj      = fn _ => "(∧r)"
    , RDisj      = fn _ => "(∨r)"
    , RImp       = fn _ => "(→r)"
+   , RIff       = fn _ => "(↔r)"
    , RTop       = fn _ => ""
    , RBot       = fn _ => ""
    , RNot       = fn _ => "(¬r)"
@@ -190,6 +196,7 @@ fun proofComplete (Proof.Rec p) : bool =
                             LTop      = single,
                             RDisj     = single,
                             RImp      = single,
+                            LIff      = single,
                             RNot      = single,
                             RBot      = single,
                             RForall   = single,
@@ -199,6 +206,7 @@ fun proofComplete (Proof.Rec p) : bool =
                             RExists   = singleQ,
                             LDisj     = double,
                             LImp      = double,
+                            RIff      = double,
                             RConj     = double
                             }
                 end
@@ -239,6 +247,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Conj   = fn _ => makePending (make [#LConj] (i, 0)),
                     Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
                     Imp    = fn _ => makePending (make [#LImp] (i, 0, 1)),
+                    Iff    = fn _ => makePending (make [#LIff] (i, 0)),
                     Not    = fn _ => makePending (make [#LNot] (i, 0)),
                     Top    = fn _ => makePending (make [#LTop] (i, 0)),
                     Bot    = fn _ => makePending (make [#LBot] i),
@@ -253,6 +262,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
                     Disj   = fn _ => makePending (make [#RDisj] (i, 0)),
                     Imp    = fn _ => makePending (make [#RImp] (i, 0)),
+                    Iff    = fn _ => makePending (make [#RIff] (i, 0, 1)),
                     Not    = fn _ => makePending (make [#RNot] (i, 0)),
                     Top    = fn _ => makePending (make [#RTop] i),
                     Bot    = fn _ => makePending (make [#RBot] (i, 0)),
@@ -295,6 +305,7 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
           LTop      = single (make [#LTop]),
           RDisj     = single (make [#RDisj]),
           RImp      = single (make [#RImp]),
+          LIff      = single (make [#LIff]),
           RNot      = single (make [#RNot]),
           RBot      = single (make [#RBot]),
           RForall   = single (make [#RForall]),
@@ -304,6 +315,7 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
           RExists   = singleQ (make [#RExists]),
           LDisj     = double (make [#LDisj]),
           LImp      = double (make [#LImp]),
+          RIff      = double (make [#RIff]),
           RConj     = double (make [#RConj])
        };
        return <xml>

@@ -138,6 +138,10 @@ Ltac lImp H :=
     unwrap H; apply imply_to_or in H; (* ~ _ \/ _ *)
     destruct H as [H | H]; [ dropNeg H | wrap H ]
   end; canonicalize.
+Ltac lIff H :=
+  match type of H with Hyp (_ <-> _) =>
+    unwrap H; destruct H as [H1 H2]; wrap H1; wrap H2
+  end; canonicalize.
 Ltac lBot H :=
   solve [match type of H with Hyp False =>
     unwrap H; destruct H
@@ -170,6 +174,11 @@ Ltac negImp H :=
     let H1 := fresh in let H2 := fresh in
     destruct H as [H1 H2];
     dropPos H1; wrap H2
+  end.
+Ltac negIff H :=
+  match type of H with (Hyp (~ (_ <-> _))) =>
+    unwrap H; apply not_and_or in H;
+    destruct H as [H|H]; wrap H
   end.
 Ltac negConj H :=
   match type of H with Hyp (~ (_ (* H1 *) /\ _ (* H2 *))) =>
@@ -215,6 +224,7 @@ Ltac rConj H := rWrap negConj H.
 (* Alternatively, commit to a disjunction *)
 Ltac rDisj H := rWrap negDisj H.
 Ltac rImp H := rWrap negImp H.
+Ltac rIff H := rWrap negIff H.
 Ltac rTop H := posneg; negTop H.
 Ltac rBot H := rWrap negBot H.
 Ltac rNot H := rWrap negNot H.
