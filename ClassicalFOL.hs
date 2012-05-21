@@ -70,10 +70,11 @@ instance CoqTerm U where
     fromCoq (C.App (C.Atom n) us) = Fun n (map fromCoq us)
     fromCoq x = errorModule ("U.fromCoq: " ++ show x)
 
-data Free = Free { freeFun :: Map Int (Set String), freePred :: Map Int (Set String) }
+data Free = Free { freeFun :: Map String (Maybe Int), freePred :: Map String (Maybe Int) }
+    deriving (Show)
 
-msetUnion = Map.unionWith Set.union
-msetUnions = Map.unionsWith Set.union
+msetUnion = Map.unionWith trivialUnify
+msetUnions = Map.unionsWith trivialUnify
 
 freeUnion (Free x1 x2) (Free y1 y2) = Free (msetUnion x1 y1) (msetUnion x2 y2)
 freeEmpty = Free Map.empty Map.empty
@@ -91,13 +92,18 @@ data L = Pred PredV [U] -- could be (Pred "A" [])
        | Exists V L
     deriving (Show, Eq, Data, Typeable)
 
-freeU :: Set String -> U -> Map Int (Set String)
+-- this works because we don't permit higher-order functions
+freeU :: Set String -> U -> Map String (Maybe Int)
 freeU b (Fun x rs) =
     msetUnions (map (freeU b) rs)
         `msetUnion`
     if Set.member x b
       then Map.empty
-      else Map.singleton (length rs) (Set.singleton x)
+      else Map.singleton x (Just (length rs))
+
+freeU' :: Set String -> U -> Map String (Maybe Int)
+freeU' b (Fun x []) = Map.singleton x Nothing
+freeU' b f = freeU b f
 
 -- Note: quantifiable things are lower case, predicates are upper case
 freeL :: Set String -> L -> Free
@@ -105,7 +111,7 @@ freeL b l = case l of
     Pred p us
         | Set.member p b -> error "freeU: Quantification over predicates not allowed in first-order logic"
         | otherwise -> Free { freeFun = msetUnions (map (freeU b) us)
-                            , freePred = Map.singleton (length us) (Set.singleton p)}
+                            , freePred = Map.singleton p (Just (length us))}
     Conj x y -> freeUnion (freeL b x) (freeL b y)
     Disj x y -> freeUnion (freeL b x) (freeL b y)
     Imp x y -> freeUnion (freeL b x) (freeL b y)
@@ -114,6 +120,29 @@ freeL b l = case l of
     Bot -> freeEmpty
     Forall q x -> freeL (Set.insert q b) x
     Exists q x -> freeL (Set.insert q b) x
+
+trivialUnify Nothing y = y
+trivialUnify x Nothing = x
+trivialUnify (Just x) (Just y) | x == y    = Just x
+                               | otherwise = error "trivialUnify: Unification failure; cannot assign type."
+
+inferType x l = case l of
+    Pred p us -> foldl' trivialUnify Nothing (map inferTypeU us)
+    Conj a b -> trivialUnify (inferType x a) (inferType x b)
+    Disj a b -> trivialUnify (inferType x a) (inferType x b)
+    Imp a b -> trivialUnify (inferType x a) (inferType x b)
+    Not a -> inferType x a
+    Top -> Nothing
+    Bot -> Nothing
+    Forall y a | y == x -> Nothing
+               | otherwise -> inferType x a
+    Exists y a | y == x -> Nothing
+               | otherwise -> inferType x a
+  where
+    inferTypeU (Fun f xs) | f == x = Just (length xs)
+                          | otherwise = foldl' trivialUnify Nothing (map inferTypeU xs)
+
+getType x a = maybe (C.Atom "U") mkFunType (inferType x a)
 
 instance CoqTerm L where
     toCoq (Pred p []) = C.Atom p
@@ -124,14 +153,13 @@ instance CoqTerm L where
     toCoq (Not a) = C.App (C.Atom "not") [toCoq a]
     toCoq Top = C.Atom "True"
     toCoq Bot = C.Atom "False"
-    toCoq (Forall x a) = C.Forall [(x, C.Atom "U")] (toCoq a)
-    toCoq (Exists x a) = C.App (C.Atom "@ex") [C.Atom "U", C.Fun [(x, C.Atom "U")] (toCoq a)]
+    toCoq (Forall x a) = C.Forall [(x, getType x a)] (toCoq a)
+    toCoq (Exists x a) = C.App (C.Atom "@ex") [getType x a, C.Fun [(x, getType x a)] (toCoq a)]
 
     fromCoq = f where
         f (C.Forall [] t) = f t
         f (C.Forall (("_", t):bs) t') = Imp (f t) (f (C.Forall bs t'))
-        f (C.Forall ((n, C.Atom "U"):bs) t) = Forall n (f (C.Forall bs t))
-        f (C.Forall _ _) = errorModule "L.fromCoq Forall"
+        f (C.Forall ((n, _):bs) t) = Forall n (f (C.Forall bs t))
         f (C.Fun _ _) = errorModule "L.fromCoq Fun"
         f (C.Typed t _) = f t
         f (C.App (C.Atom "ex") [C.Atom "U", C.Fun [(n, C.Atom "U")] t]) = Exists n (f t)
@@ -223,7 +251,7 @@ freeQ f q = case q of
     LTop _ x -> f x
     LNot _ x -> f x
     -- guaranteed not to be behind any binders
-    LForall _ u x -> msetUnion (freeU Set.empty u) (f x)
+    LForall _ u x -> msetUnion (freeU' Set.empty u) (f x)
     LExists _ x -> f x
     LContract _ x -> f x
     LWeaken _ x -> f x
@@ -235,7 +263,7 @@ freeQ f q = case q of
     RTop _ -> Map.empty
     RNot _ x -> f x
     RForall _ x -> f x
-    RExists _ u x -> msetUnion (freeU Set.empty u) (f x)
+    RExists _ u x -> msetUnion (freeU' Set.empty u) (f x)
     RWeaken _ x -> f x
     RContract _ x -> f x
 
@@ -381,19 +409,16 @@ mkPredType n = C.Forall [("_", C.Atom "U")] (mkPredType (n-1))
 mkFunType 0 = C.Atom "U"
 mkFunType n = C.Forall [("_", C.Atom "U")] (mkFunType (n-1))
 
-mkMsetForall :: (Int -> C.Term) -> Map Int (Set String) -> C.Term -> C.Term
+mkMsetForall :: (Int -> C.Term) -> Map String (Maybe Int) -> C.Term -> C.Term
 mkMsetForall mk m x = Map.foldWithKey f x m
-    where f i s z = Set.foldr (g (mk i)) z s
-          g mki b z = C.Forall [(b, mki)] z
+    where f b mi z = C.Forall [(b, mk (fromMaybe 0 mi))] z
 
 mkFreeForall :: Free -> C.Term -> C.Term
 mkFreeForall f = mkMsetForall mkPredType (freePred f)
                . mkMsetForall mkFunType (freeFun f)
 
 countFree :: Free -> Int
-countFree (Free x y) = countMset x + countMset y
-countMset :: Map Int (Set String) -> Int
-countMset m = Map.fold (\x z -> Set.size x + z) 0 m
+countFree (Free x y) = Map.size x + Map.size y
 
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
