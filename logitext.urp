@@ -2,6 +2,7 @@ allow url http://localhost/logitext/style.css
 allow url http://localhost/logitext/tipsy.css
 allow url http://en.wikipedia.org/wiki/Sequent_calculus
 allow url https://github.com/ezyang/logitext
+allow url http://www.cis.upenn.edu/~bcpierce/sf/
 rewrite all Logitext/*
 library haskell
 library meta

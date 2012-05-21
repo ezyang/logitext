@@ -491,7 +491,7 @@ fun tutorial () =
   exForallContract <- mkWorkspace "forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))";
   return <xml>
   <head>
-    <title>Tutorial on Sequent Calculus and First-Order Logic</title>
+    <title>Interactive tutorial for Sequent Calculus in First-Order Logic</title>
     {head}
   </head>
   <body onload={
@@ -514,10 +514,11 @@ fun tutorial () =
   }>
     <div class={page}>
 
-      <p><i>This interactive tutorial is intended to explain what
-      first-order logic and the sequent calculus are to an interested
-      software engineer who has some familiarity with basic logic, but
-      no experience with formal logic.</i></p>
+      <p><i>This interactive tutorial is intended to explain how to use
+      Logitext; on the way, you'll learn about the sequent calculus and
+      first-order logic, along with a little type theory and theorem
+      proving.  It is geared towards an interested software engineer who
+      has some familiarity with basic boolean logic.</i></p>
 
       <h2>Motivation</h2>
 
@@ -539,7 +540,7 @@ fun tutorial () =
       if <i>x</i> is a man, <i>x</i> is a mortal"; symbolically,
       we'd say "∀x. P(x) -> Q(x)", where <i>P</i> is true if and only if <i>x</i>
       is a man, and <i>Q</i> is true if and only if <i>x</i> is mortal.  Use of quantifiers
-      takes us from Boolean logic to first-order logic.</p>
+      on individuals takes us from Boolean logic to first-order logic.</p>
 
       <p>However, now there's a problem: we can't figure out if
       something is true anymore by writing out the truth table.  When a
@@ -562,25 +563,6 @@ fun tutorial () =
       we can program it into a computer, and it is also powerful enough to let us
       derive any true statement in first-order logic (this property is called
       completeness.)</p>
-
-      <p>First-order logic is well worth studying, because it is a
-      simple yet powerful tool for modelling the world and writing
-      specifications and constraints.  These constraints can be given to
-      tools called SMT solvers, which can then automatically determine
-      how to satisfy these constraints.  You can't do that with plain
-      English.</p>
-
-      <p>The sequent calculus is one tool for understanding how
-      first-order logic works on the inside.  It is a little more formal
-      than you might reason normally, but this formality means that it
-      can tackle confusing statements in logic with ease.  Additionally,
-      the notation and concepts introduced in sequent calculus are
-      relied upon heavily in the academic type theory literature, where
-      inference rules are considerably more complicated.  Studying how
-      to understand these rules in a simpler setting is essential to
-      being able to "read the Greek."  But even if you're not an
-      academic, inference rules are a remarkably quick way to understand
-      the type systems of languages.</p>
 
       <h2>How it works</h2>
 
@@ -616,7 +598,9 @@ fun tutorial () =
 
       <p><b>Conclusions on the right.</b>  Read the following sequent as
       "A implies A or Δ".  (Yes, comma means {wConjunction} on the
-      left, and {wDisjunction} on the right. This is the conventional notation.)</p>
+      left, and <b>{wDisjunction}</b> on the right. One reason for this is that
+      it makes it very easy to identify axiomatically true statements:
+      if an {wAtomicClause} is on the left and on the right, then you're done.)</p>
 
       {exRight.Widget}
 
@@ -647,10 +631,11 @@ fun tutorial () =
       {exLDisjFull.Widget}
 
       <p>The small text on the right of the bar indicates what rule was
-      applied: the first letter indicates the logical operator
-      involved, and the second letter indicates <b>l</b>eft or
-      <b>r</b>ight.  We'll now go on a tour of all the inference rules
-      in first-order logic.</p>
+      applied: the first letter indicates the logical operator involved,
+      and the second letter indicates <b>l</b>eft or <b>r</b>ight.
+      Together, axioms and inference rules make up the entirety of our
+      deductive system: they are <i>all you need</i>. We'll now go on a
+      tour of all the inference rules in first-order logic.</p>
 
       <p><b>Trivial rules.</b>  Recall that all of the hypotheses on the
       left side of the {wTurnstile} can be thought of as ANDed together, and
@@ -765,8 +750,7 @@ fun tutorial () =
       </table>
 
       <p>With these {wInferenceRule}s, you now have the capability to
-      prove everything in first-order logic!  The next section will
-      contain some exercises for you to try.</p>
+      prove everything in first-order logic!</p>
 
       <h2>Exercises</h2>
 
@@ -779,7 +763,48 @@ fun tutorial () =
       {exForallContract.Widget}
       {exDrinkersParadox.Widget}
 
-      <p>Return to <a link={main ()}>the main page.</a></p>
+      <h2>Conclusion</h2>
+
+      <p>First-order logic is well worth studying, because it is a
+      simple yet powerful tool for modelling the world and writing
+      specifications and constraints.  These constraints can be given to
+      tools called SMT solvers, which can then automatically determine
+      how to satisfy these constraints.  You can't do that with plain
+      English.  There are a lot of other ways of understanding
+      first-order logic, and some important facts about it that we
+      haven't included here; we refer the reader to other texts for
+      more information.</p>
+
+      <p>This tutorial has heavily emphasized the sequent calculus as a
+      deductive system. One downside to it, which you may have noticed
+      as you did some of the exercises, is that it makes proofs of
+      certain statements a bit harder and a bit more obscure than it
+      would be if you were reasoning informally.  "I clicked around and
+      managed to prove this, but I'm not really sure what happened!"
+      This is much of the point of being formal: the proof should be
+      brainless enough that even a computer can understand it!  In fact,
+      working with the sequent calculus is a <i>lot</i> like working
+      with a proof assistant.  If you're interested in tackling more
+      complicated problems than presented here, I suggest checking out a
+      textbook like <a
+      href="http://www.cis.upenn.edu/~bcpierce/sf/">Software
+      Foundations</a>.</p>
+
+      <p>There is one other important reason for learning a deductive
+      system like the sequent calculus.  the notation and concepts
+      introduced here are relied upon heavily in the academic type
+      theory literature.  Inference rules in this setting are
+      considerably more complicated, so studying a simpler set of rules
+      is a key step on the way to being able to "read the Greek."  There
+      is a reason why they are so well used: inference rules are a
+      remarkably compact and efficient way to describe a type system:
+      their use is analogous to the use of BNFs to specify grammars.  My
+      hope is that this tutorial has helped you take your first step
+      into the fascinating world of formal systems, type theory and
+      theorem proving.</p>
+
+      <p>Return to <a link={main ()}>the main page</a>, and try coming up with
+      some theorems of your own!</p>
 
     </div>
   </body>

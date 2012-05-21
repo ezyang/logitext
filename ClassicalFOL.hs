@@ -542,6 +542,7 @@ folStyle = emptyDef
                 , P.reservedOpNames =
                     ["(",")",".",",",
                     "->", "→",
+                    "<->", "↔", "<=>",
                     "/\\","∧",
                     "\\/","∨",
                     "|-","⊢",
@@ -593,7 +594,7 @@ sequent =  try (S <$> commaSep expr <* choice [reservedOp "|-", reservedOp "⊢"
 table   = [ [prefix "~" Not, prefix "¬" Not ]
           , [binary "/\\" Conj AssocLeft, binary "∧" Conj AssocLeft ]
           , [binary "\\/" Disj AssocLeft, binary "∨" Disj AssocLeft ]
-          , [binary "->" Imp AssocRight, binary "→" Imp AssocRight, binary "<->" Iff AssocRight, binary "↔" Iff AssocRight ]
+          , [binary "->" Imp AssocRight, binary "→" Imp AssocRight, binary "<->" Iff AssocRight, binary "↔" Iff AssocRight, binary "<=>" Iff AssocRight ]
           ]
 
 binary  name fun assoc = Infix (do{ reservedOp name; return fun }) assoc
