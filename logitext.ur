@@ -195,27 +195,32 @@ fun proofComplete (Proof.Rec p) : bool =
                 end
              }
 
-fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xbody =
+fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
         fun makePendingU prompter (f : universe -> tactic int) (g : tactic int) : transaction unit =
                 r <- source "";
                 (* XXX would be nice if the ctextbox automatically grabbed focus *)
-                set prompter <xml><div class={relMark}><div class={offsetBox}>
+                let val doPrompt =
+                    rawu <- get r;
+                    u <- rpc (zapParseUniverse rawu);
+                    match (fromJson u : result universe)
+                    { Success = fn x => makePending (f x)
+                    , EndUserFailure = fn e => match e
+                        { UpdateFailure = fn () => showError "Invalid universe element."
+                        , ParseFailure = fn () => showError "Parse error."
+                        }; set prompter <xml></xml>
+                    , InternalFailure = fn s => showError s; set prompter <xml></xml>
+                    }
+                in set prompter <xml><div class={relMark}><div class={offsetBox}>
                       <ctextbox size=6 source={r}
                         onkeyup={fn k => if eq k 13
-                            then (
-                                rawu <- get r;
-                                u <- rpc (zapParseUniverse rawu);
-                                match (fromJson u : result universe)
-                                { Success = fn x => makePending (f x)
-                                , InternalFailure = fn _ => return ()
-                                , EndUserFailure = fn _ => return ()
-                                })
-                            else return ()}
-                        onblur={set prompter <xml></xml>} />
-                      or
-                      <button value="Contract" onclick={makePending g} />
+                            then doPrompt
+                            else return ()} />
+                      <button value="Go" onclick={doPrompt} />
+                      <button value="Contraction" onclick={makePending g} />
+                      <button value="X" onclick={set prompter <xml></xml>} />
                     </div></div></xml>
+                end
     in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
               (* XXX suboptimal; only want to allocate prompter when necessary *)
@@ -248,16 +253,16 @@ fun renderSequent (h : proof -> transaction unit) (s : sequent) : transaction xb
                 {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
     return <xml><ul class={commaList}>{left}</ul> ⊢ <ul class={commaList}>{right}</ul></xml>
   end
-fun renderProof (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
+fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
        (* XXX It would be neat if mouse over caused this to change, but a little difficult *)
-       sequent <- renderSequent h s;
+       sequent <- renderSequent showError h s;
        return <xml><table><tr><td>{sequent}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
    Pending = fn (s, t) => return <xml>...</xml>,
    Proof = fn (s, t) =>
-       sequent <- renderSequent h s;
+       sequent <- renderSequent showError h s;
        let fun render f t : transaction xbody =
-                sib <- renderProof (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
+                sib <- renderProof showError (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
            fun empty (_ : int) : transaction xbody = return <xml></xml>
            (* explicit signatures here to avoid "too-deep unification variable" problems *)
@@ -315,11 +320,11 @@ fun handleResultProof handler v proofStatus err (z : string) =
         fun showError e = set err <xml><div class={error}>{[e]} <button onclick={clearError} value="Dismiss" /></div></xml>
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
-                            bind (renderProof handler r) (set v);
+                            bind (renderProof showError handler r) (set v);
                             set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
         , EndUserFailure = fn e => set proofStatus proofIsIncomplete; match e
             { UpdateFailure = fn () => showError "The inference you attempted to make is invalid."
-            , ParseFailure = fn () => showError "Parse failure; check your syntax."
+            , ParseFailure = fn () => showError "Parse error."
             }
         , InternalFailure = fn s => showError s
         }
@@ -632,13 +637,6 @@ and proving goal =
       </xml>
       (* XXX initially, the proof box should glow, so the user nows that this is special *)
       (* XXX we can't factor out the proof box, because there is no way to compose onload attributes *)
-  (*
-  seqid <- fresh;
-        <body onload={bind (renderProof handler pf) (set v); Js.infinitedrag seqid <xml><dyn signal={signal v}/></xml>}>
-          <div class={viewport}>
-            <div id={seqid} class={proof}>&nbsp;</div>
-          </div>
-          *)
 
 and provingTrampoline r =
   redirect (url (proving r.Goal))
