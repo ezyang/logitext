@@ -2,7 +2,10 @@
 
 module ClassicalFOL where
 
+import Data.Set (Set)
+import Data.Map (Map)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Either
 import Data.Foldable (traverse_)
@@ -20,6 +23,7 @@ import Text.XML.Light
 import Data.Aeson.Types (Result(..))
 import Data.Aeson (json')
 import Debug.Trace
+import Data.List
 import qualified Data.Aeson.Encode as E
 import qualified Data.Attoparsec.Lazy as L
 
@@ -66,6 +70,16 @@ instance CoqTerm U where
     fromCoq (C.App (C.Atom n) us) = Fun n (map fromCoq us)
     fromCoq x = errorModule ("U.fromCoq: " ++ show x)
 
+data Free = Free { freeFun :: Map Int (Set String), freePred :: Map Int (Set String) }
+
+msetUnion = Map.unionWith Set.union
+msetUnions = Map.unionsWith Set.union
+
+freeUnion (Free x1 x2) (Free y1 y2) = Free (msetUnion x1 y1) (msetUnion x2 y2)
+freeEmpty = Free Map.empty Map.empty
+
+freeS (S hs cs) = foldl' freeUnion freeEmpty (map (freeL Set.empty) (hs ++ cs))
+
 data L = Pred PredV [U] -- could be (Pred "A" [])
        | Conj L L
        | Disj L L
@@ -76,6 +90,30 @@ data L = Pred PredV [U] -- could be (Pred "A" [])
        | Forall V L
        | Exists V L
     deriving (Show, Eq, Data, Typeable)
+
+freeU :: Set String -> U -> Map Int (Set String)
+freeU b (Fun x rs) =
+    msetUnions (map (freeU b) rs)
+        `msetUnion`
+    if Set.member x b
+      then Map.empty
+      else Map.singleton (length rs) (Set.singleton x)
+
+-- Note: quantifiable things are lower case, predicates are upper case
+freeL :: Set String -> L -> Free
+freeL b l = case l of
+    Pred p us
+        | Set.member p b -> error "freeU: Quantification over predicates not allowed in first-order logic"
+        | otherwise -> Free { freeFun = msetUnions (map (freeU b) us)
+                            , freePred = Map.singleton (length us) (Set.singleton p)}
+    Conj x y -> freeUnion (freeL b x) (freeL b y)
+    Disj x y -> freeUnion (freeL b x) (freeL b y)
+    Imp x y -> freeUnion (freeL b x) (freeL b y)
+    Not x -> freeL b x
+    Top -> freeEmpty
+    Bot -> freeEmpty
+    Forall q x -> freeL (Set.insert q b) x
+    Exists q x -> freeL (Set.insert q b) x
 
 instance CoqTerm L where
     toCoq (Pred p []) = C.Atom p
@@ -169,6 +207,37 @@ data Q a = Cut L a a
          | RWeaken Int a
          | RContract Int a
     deriving (Functor, Show, Data, Typeable)
+
+-- not bothering with sequents themselves, we get them top level
+freeP (Goal _) = Map.empty
+freeP (Pending _ q) = freeQ (const Map.empty) q
+freeP (Proof _ q) = freeQ freeP q
+
+freeQ f q = case q of
+    Cut l x y -> error "freeQ: Cut not implemented yet"
+    LExact _ -> Map.empty
+    LConj _ x -> f x
+    LDisj _ x y -> msetUnion (f x) (f y)
+    LImp _ x y -> msetUnion (f x) (f y)
+    LBot _ -> Map.empty
+    LTop _ x -> f x
+    LNot _ x -> f x
+    -- guaranteed not to be behind any binders
+    LForall _ u x -> msetUnion (freeU Set.empty u) (f x)
+    LExists _ x -> f x
+    LContract _ x -> f x
+    LWeaken _ x -> f x
+    RExact _ -> Map.empty
+    RConj _ x y -> msetUnion (f x) (f y)
+    RDisj _ x -> f x
+    RImp _ x -> f x
+    RBot _ x -> f x
+    RTop _ -> Map.empty
+    RNot _ x -> f x
+    RForall _ x -> f x
+    RExists _ u x -> msetUnion (freeU Set.empty u) (f x)
+    RWeaken _ x -> f x
+    RContract _ x -> f x
 
 -- preorder traversal for side effects (does a full rebuild)
 preorder :: Applicative f => (P -> f P) -> (Q P -> f ()) -> P -> f P
@@ -290,14 +359,7 @@ parseResponse raw = do
 theCoq = unsafePerformIO $ do
     (f, _) <- coqtopRaw "ClassicalFOL"
     mapM_ f
-        [ "Section scratch"
-        , "Parameter U : Set"
-        -- XXX factor these constants out; we could make them
-        -- depend on how the user initially sets up the equation
-        , "Variable z : U"
-        , "Variable f g h : U -> U"
-        , "Variable A B C D Δ Γ : Prop"
-        , "Variable P Q R : U -> Prop"
+        [ "Parameter U : Set"
         , "Set Printing All"
         , "Set Default Timeout 1" -- should be more than enough! no proof search see?
         , "Set Undo 0" -- not gonna use it
@@ -313,6 +375,26 @@ start g = do
 parseUniverse :: String -> IO U
 parseUniverse g = userParseError $ parse (whiteSpace >> universe <* eof) "universe" g
 
+mkPredType 0 = C.Sort C.Prop
+mkPredType n = C.Forall [("_", C.Atom "U")] (mkPredType (n-1))
+
+mkFunType 0 = C.Atom "U"
+mkFunType n = C.Forall [("_", C.Atom "U")] (mkFunType (n-1))
+
+mkMsetForall :: (Int -> C.Term) -> Map Int (Set String) -> C.Term -> C.Term
+mkMsetForall mk m x = Map.foldWithKey f x m
+    where f i s z = Set.foldr (g (mk i)) z s
+          g mki b z = C.Forall [(b, mki)] z
+
+mkFreeForall :: Free -> C.Term -> C.Term
+mkFreeForall f = mkMsetForall mkPredType (freePred f)
+               . mkMsetForall mkFunType (freeFun f)
+
+countFree :: Free -> Int
+countFree (Free x y) = countMset x + countMset y
+countMset :: Map Int (Set String) -> Int
+countMset m = Map.fold (\x z -> Set.size x + z) 0 m
+
 refine :: P -> IO P
 refine p@(Goal s)      = refine' s p
 refine p@(Pending s _) = refine' s p
@@ -320,7 +402,7 @@ refine p@(Proof s _)   = refine' s p
 
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
-refine' (S hs cs) pTop = withMVar theCoq $ \f -> do
+refine' sequent@(S hs cs) pTop = withMVar theCoq $ \f -> do
     -- hPutStrLn stderr (show pTop)
     -- XXX demand no errors
     -- despite being horrible mutation, this plays an important
@@ -339,8 +421,13 @@ refine' (S hs cs) pTop = withMVar theCoq $ \f -> do
         -- XXX the original invariant we checked didn't handle Coq
         -- alpha-renaming binders for us. Oops.
         checkState s = return () -- readState >>= \s' -> print s' >> assert (Just s == s') (return ())
-    r <- run ("Goal " ++ C.render (toCoq (Imp (conjList hs) (disjList cs))))
-    when (not r) $ errorModule "refine: setting goal failed" -- we're kind of screwed
+
+    let free = freeS sequent `freeUnion` Free { freeFun = freeP pTop, freePred = Map.empty }
+    r <- run ("Goal " ++ C.render (mkFreeForall free (toCoq (Imp (conjList hs) (disjList cs)))))
+    when (not r) $ errorModule "refine: setting goal failed"
+    replicateM_ (countFree free) $ do
+        r <- run "intro"
+        when (not r) $ errorModule "refine: intro free variables failed"
     r' <- run "sequent"
     when (not r') $ errorModule "refine: initializing sequent failed"
     let fp p@(Goal s) = checkState s >> (run "admit" >>= (`unless` errorModule "refine: could not admit")) >> return p
@@ -383,7 +470,7 @@ refine' (S hs cs) pTop = withMVar theCoq $ \f -> do
             return (Proof s (fmap (Goal . (gs `index`)) q))
         fp p@(Proof s _) = checkState s >> return p
         fq q = run (show (qToTac q)) >>= (`unless` errorModule "refine: inconsistent proof state")
-    preorder fp fq pTop `finally` f "Abort All"
+    preorder fp fq pTop `finally` (f "Abort All")
 
 refineString :: Lazy.ByteString -> IO Lazy.ByteString
 refineString s =
@@ -419,11 +506,16 @@ folStyle = emptyDef
                     ]
                 , P.caseSensitive   = True
                 }
+folStyleUpper = folStyle {P.identStart = upper}
+folStyleLower = folStyle {P.identStart = lower}
 
 lexer = P.makeTokenParser folStyle
+lexerUpper = P.makeTokenParser folStyleUpper
+lexerLower = P.makeTokenParser folStyleLower
 
 reserved   = P.reserved lexer
-identifier = P.identifier lexer
+upperIdentifier = P.identifier lexerUpper
+lowerIdentifier = P.identifier lexerLower
 reservedOp = P.reservedOp lexer
 integer    = P.integer lexer
 whiteSpace = P.whiteSpace lexer
@@ -431,6 +523,7 @@ parens     = P.parens lexer
 comma      = P.comma lexer
 commaSep   = P.commaSep lexer
 commaSep1  = P.commaSep1 lexer
+lexeme     = P.lexeme lexer
 
 -- XXX names term versus expr
 -- Coq inspired BNF to support:
@@ -464,8 +557,8 @@ expr    = buildExpressionParser table term
        <?> "expression"
 
 universe =  try (parens universe)
-        <|> try (Fun <$> identifier <*> parens (commaSep1 universe))
-        <|> try (Fun <$> identifier <*> return [])
+        <|> try (Fun <$> lowerIdentifier <*> parens (commaSep1 universe))
+        <|> try (Fun <$> lowerIdentifier <*> return [])
         <?> "universe"
 
 manyForall (b:bs) e = Forall b (manyForall bs e)
@@ -477,8 +570,8 @@ manyExists [] e = e
 term    =  try (parens expr)
        <|> try (Top <$ choice [reserved "True", reserved "⊤"])
        <|> try (Bot <$ choice [reserved "False", reserved "⊥"])
-       <|> try (manyForall <$ choice [reserved "forall", reserved "∀"] <*> many identifier <* choice [reservedOp ".", reservedOp ","] <*> expr)
-       <|> try (manyExists <$ choice [reserved "exists", reserved "∃"] <*> many identifier <* choice [reservedOp ".", reservedOp ","] <*> expr)
-       <|> try (Pred <$> identifier <*> parens (commaSep1 universe))
-       <|> try (Pred <$> identifier <*> return [])
+       <|> try (manyForall <$ choice [reserved "forall", reserved "∀"] <*> many lowerIdentifier <* choice [reservedOp ".", reservedOp ","] <*> expr)
+       <|> try (manyExists <$ choice [reserved "exists", reserved "∃"] <*> many lowerIdentifier <* choice [reservedOp ".", reservedOp ","] <*> expr)
+       <|> try (Pred <$> upperIdentifier <*> parens (commaSep1 universe))
+       <|> try (Pred <$> upperIdentifier <*> return [])
        <?> "simple expression"
