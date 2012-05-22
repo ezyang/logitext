@@ -10,8 +10,8 @@ while true
 do
     reset
     (
-        ghc --make -c ClassicalFOLFFI.hs && \
-        ghc --make -c haskell.c && \
+        ghc -Wall -Werror --make -c ClassicalFOLFFI.hs && \
+        ghc -Wall -Werror --make -c haskell.c && \
         urweb $URWEB_FLAGS logitext && \
         ./logitext.exe
         #(./logitext.exe &) && \

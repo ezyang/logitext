@@ -12,13 +12,13 @@ import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.Chan
 import Control.Concurrent.MVar
 import Control.Exception
-import Control.Monad
 import Text.XML.Light.Input
 import Text.XML.Light
 import Data.List.Split
 
 -- You'll need ezyang's private copy of Coq https://github.com/ezyang/coq
 
+coqtopProcess :: String -> Handle -> CreateProcess
 coqtopProcess theory err = CreateProcess
     { cmdspec = RawCommand "coqtop"
                             [ "-boot"
@@ -37,8 +37,9 @@ coqtopProcess theory err = CreateProcess
 onlyOnce :: IO () -> IO (IO ())
 onlyOnce m = do
     i <- newMVar m
-    return (modifyMVar_ i (\m -> m >> return (return ())))
+    return (modifyMVar_ i (\x -> x >> return (return ())))
 
+coqtopRaw :: String -> IO (String -> IO [Content], IO ())
 coqtopRaw theory = do
     --hPutStrLn stderr "Starting up coqtop..."
     -- XXX We're not really doing good things with warnings.
@@ -62,7 +63,7 @@ coqtopRaw theory = do
     -- side say "I want more information!"  Nor does it do good things
     -- if you give it too much information... (de-synchronization risk)
     interactVar <- newMVar (\s -> {- hPutStrLn stderr s >> -} hPutStr fin (s ++ ".\n") >> readChan resultChan)
-    let interact s = withMVar interactVar (\f -> f s)
+    let run s = withMVar interactVar (\f -> f s)
     end <- onlyOnce $ do
         -- hPutStrLn stderr "Closing coqtop..."
         killThread tout
@@ -74,6 +75,7 @@ coqtopRaw theory = do
         -- We're erring on the safe side here.  If no escape of coqtop
         -- from bracket is enforced, this is impossible
         modifyMVar_ interactVar (\_ -> return (error "coqtopRaw/end: coqtop is dead"))
-    return (interact, end)
+    return (run, end)
 
+coqtop :: String -> ((String -> IO [Content]) -> IO a) -> IO a
 coqtop theory inner = bracket (coqtopRaw theory) snd (inner . fst)

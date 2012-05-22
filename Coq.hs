@@ -51,13 +51,20 @@ coqStyle = emptyDef
                 , P.caseSensitive   = True
                 }
 
+lexer :: P.GenTokenParser String a Identity
 lexer = P.makeTokenParser coqStyle
 
+reserved :: String -> P ()
 reserved   = P.reserved lexer
+identifier :: P String
 identifier = P.identifier lexer
+reservedOp :: String -> P ()
 reservedOp = P.reservedOp lexer
+integer :: P Integer
 integer    = P.integer lexer
+whiteSpace :: P ()
 whiteSpace = P.whiteSpace lexer
+parens :: ParsecT String u Identity a -> ParsecT String u Identity a
 parens     = P.parens lexer
 
 -- http://coq.inria.fr/doc/Reference-Manual003.html
@@ -172,14 +179,6 @@ operconstr0 = try atomic_constr
 lconstr :: P Term
 lconstr = operconstr200
 
--- constr:
---  operconstr.8
---  "@" global
-constr :: P Term
-constr = try operconstr0
-     -- XXX dropped @ here too
-     <|> (reservedOp "@" >> Atom <$> identifier)
-
 -- binder_constr:
 --  "forall" open_binders "," operconstr.200
 --  "fun" open_binders "=>" operconstr.200
@@ -191,7 +190,10 @@ binder_constr = try (reserved "forall" >> Forall <$> open_binders <* reservedOp 
 --  name name* ":" lconstr
 --  name name* binders
 --  closed_binder binders
+
+msBinder :: [a] -> t -> [(a,t)]
 msBinder ns t = map (,t) ns
+
 open_binders :: P [Binder]
 open_binders = try (msBinder <$> many1 name <* reservedOp ":" <*> lconstr)
            <|> ((++) <$> closed_binder <*> binders)
@@ -215,6 +217,7 @@ closed_binder = try (reservedOp "(" >> msBinder <$> many name <* reservedOp ":" 
 -- appl_arg:
 --  "(" lconstr ")" -- we don't need the hack yay!
 --  operconstr.0
+appl_arg :: P Term
 appl_arg = try (parens lconstr)
        <|> operconstr0
 
@@ -229,8 +232,8 @@ atomic_constr = try global
 sort :: P Sort
 sort = Prop <$ reserved "Prop" <|> Set <$ reserved "Set" <|> Type <$ reserved "Type"
 
-parse_sample = "or (forall _ : forall _ : forall _ : P, Q, P, P) False"
-sample = parse (term <* eof) "" parse_sample
+-- parse_sample = "or (forall _ : forall _ : forall _ : P, Q, P, P) False"
+-- sample = parse (term <* eof) "" parse_sample
 
 parseTerm :: String -> String -> Either ParseError Term
 parseTerm = parse (whiteSpace >> term <* eof)

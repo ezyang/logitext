@@ -8,6 +8,7 @@ data Expr = Seq Expr [Expr]
           | Tac String [String] -- technically should point to tacarg; we only allow qualids for now
 
 -- Useful atomic tactics
+admit :: Expr
 admit = Tac "admit" []
 
 -- This is kind of deficient for handling tacexpr_1, tacexpr_2,

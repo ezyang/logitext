@@ -13,7 +13,6 @@ import Foreign.C.String
 import Data.Data
 import Control.Exception
 import Control.Monad
-import System.IO
 import qualified Data.ByteString.UTF8 as U
 import GHC.Conc
 import qualified Data.Aeson.Encode as E
@@ -33,6 +32,7 @@ data Result a = EndUserFailure EndUserFailure
 -- XXX this doesn't work if we have something that legitimately
 -- needs to return a string, although we can force fix that
 -- by adding a wrapper...
+result :: IO a -> IO (Result a)
 result m =
     liftM Success m `catches`
         [ Handler (return . EndUserFailure)
@@ -42,6 +42,7 @@ result m =
 -- incoming string doesn't have to be Haskell managed
 -- outgoing string is on Urweb allocated memory, and
 -- is the unique outgoing one
+serialize :: Data a => Ptr UrwebContext -> IO a -> IO CString
 serialize ctx m = lazyByteStringToUrWebCString ctx . E.encode . toJSON =<< result m
 
 -- (f =<< peekUTF8String cs)
@@ -55,6 +56,7 @@ startFFI ctx s = serialize ctx (start =<< peekUTF8String s)
 parseUniverseFFI :: Ptr UrwebContext -> CString -> IO CString
 parseUniverseFFI ctx s = serialize ctx (parseUniverse =<< peekUTF8String s)
 
+peekUTF8String :: CString -> IO String
 peekUTF8String = liftM U.toString . S.packCString
 
 refineFFI :: Ptr UrwebContext -> CString -> IO CString
@@ -63,6 +65,7 @@ refineFFI ctx s = serialize ctx $ do
     r <- maybe (error "ClassicalFOLFFI.refineFFI") return (decode (L.fromChunks [bs]))
     refine r
 
+lazyByteStringToUrWebCString :: Ptr UrwebContext -> L.ByteString -> IO CString
 lazyByteStringToUrWebCString ctx bs = do
     let s = S.concat (L.toChunks bs)
     -- XXX S.concat is really bad! Bad Edward!

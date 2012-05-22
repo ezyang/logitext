@@ -5,13 +5,11 @@ module JSONGeneric where
 import Data.Aeson hiding (toJSON, fromJSON, parseJSON)
 import qualified Data.Aeson.Types as T
 import Data.Generics
-import Data.Text (Text, pack, unpack)
+import Data.Text (pack, unpack)
 import qualified Data.Vector as V
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.Attoparsec.Lazy as L
-import qualified Data.Aeson.Encode as E
 
-import Data.Attoparsec.Number (Number)
 import qualified Data.HashMap.Strict as H
 import "mtl" Control.Monad.State.Strict
 import Data.Aeson.Types hiding (FromJSON(..), ToJSON(..), fromJSON)
@@ -67,7 +65,7 @@ toJSON_generic = generic
         -- and use an object if there are field names.
         encodeArgs c = encodeArgs' (constrFields c)
         encodeArgs' [] [j] = j
-        encodeArgs' [] js  = encodeArgs' (map show [1..]) js
+        encodeArgs' [] js  = encodeArgs' (map show [(1::Int)..]) js
         encodeArgs' ns js  = object $ zip (map pack ns) js
 
 type F a = Parser a
@@ -121,7 +119,7 @@ parseJSON_generic j = generic
         decodeArgs c0 = go (numConstrArgs (resType generic) c0) c0
                            (constrFields c0)
          where
-          go 0 c []       jd         = construct c [] -- nullary constructor
+          go 0 c []       _          = construct c [] -- nullary constructor
           go 1 c []       jd         = construct c [jd] -- unary constructor
           go d c []       jd         = go d c (map show [1..d]) jd
           go _ c fs@(_:_) (Object o) = selectFields o fs >>=
