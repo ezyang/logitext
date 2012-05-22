@@ -41,5 +41,6 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .proofIsIncomplete .proof {}
 
 .explained {border-bottom:dotted 1px #444;}
+.proof .explained{border-bottom:0;}
 
 sub {font-size:0.6em;}

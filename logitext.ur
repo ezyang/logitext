@@ -258,10 +258,10 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     match (fromJson u : result universe)
                     { Success = fn x => makePending (f x)
                     , EndUserFailure = fn e => match e
-                        { UpdateFailure = fn () => showError "Invalid universe element."
-                        , ParseFailure = fn () => showError "Parse error."
+                        { UpdateFailure = fn () => showError <xml>Invalid universe element.</xml>
+                        , ParseFailure = fn () => showError <xml>Parse error.</xml>
                         }; set prompter <xml></xml>
-                    , InternalFailure = fn s => showError s; set prompter <xml></xml>
+                    , InternalFailure = fn s => showError <xml>{[s]}</xml>; set prompter <xml></xml>
                     }
                 in set prompter (<xml><div class={relMark}><div class={offsetBox}>
                       <ctextbox size=6 source={r}
@@ -464,17 +464,17 @@ val wQuantifier : xbody =
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml></xml>
-        fun showError e = set err (Js.tooltipify <xml><div class={error}>{[e]} <button onclick={clearError} value="Dismiss" /></div></xml>)
+        fun showError (e : xbody) = set err (Js.tooltipify <xml><div class={error}>{e} <button onclick={clearError} value="Dismiss" /></div></xml>)
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);
                             set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
         , EndUserFailure = fn e => set proofStatus proofIsIncomplete; match e
            (* XXX assuming a bit about what update failures are... *)
-            { UpdateFailure = fn () => showError "No matching {wAtomicClause} on other side of {wTurnstile}."
-            , ParseFailure = fn () => showError "Parse error."
+            { UpdateFailure = fn () => showError <xml>No matching {wAtomicClause} on other side of {wTurnstile}.</xml>
+            , ParseFailure = fn () => showError <xml>Parse error.</xml>
             }
-        , InternalFailure = fn s => showError s
+        , InternalFailure = fn s => showError <xml>{[s]}</xml>
         }
     end
 

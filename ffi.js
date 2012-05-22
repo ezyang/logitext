@@ -22,7 +22,7 @@ function tooltipify(contents) {
 function runtip(nid) {
     // Ur/Web runs the embedded JavaScript too early, so you need to
     // schedule it later
-    setTimeout(function() {$("#" + nid + " *[title]").tipsy()}, 0);
+    setTimeout(function() {$("#" + nid + " *[title]").tipsy().addClass("explained")}, 0);
 }
 
 $(document).ready(function(){
