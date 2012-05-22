@@ -19,7 +19,7 @@ do
         #(curl "http://localhost:8080/main" &> /dev/null)
     ) &
     PID=$!
-    inotifywait -e modify $(git ls-files) 2> /dev/null
+    inotifywait -e modify $(git ls-files '*.ur' '*.urp' '*.urs' '*.hs' '*.c' '*.h') 2> /dev/null
     kill $PID
     pkill logitext.exe
 done

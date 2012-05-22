@@ -17,6 +17,9 @@ style page
 style error
 style turnstile
 style centerTable
+style offsetInner
+style green
+style primaryConnective
 
 open Json
 
@@ -66,20 +69,23 @@ type logic = Logic.r
 (* hat tip http://blog.sigfpe.com/2010/12/generalising-godels-theorem-with_24.html
    the parser in ClassicalLogic.hs should support this syntax. *)
 fun renderParen (b : bool) (r : xbody) : xbody = if b then <xml>({r})</xml> else r
-fun renderLogic p ((Logic.Rec r) : logic) : xbody = match r
+fun renderLogic top p ((Logic.Rec r) : logic) : xbody =
+  let fun symbol s = if top then <xml><span class={primaryConnective}>{[s]}</span></xml> else <xml>{[s]}</xml>
+  in match r
   {Pred = fn (f, xs) =>
     case xs of
       | Nil => <xml>{[f]}</xml>
       | Cons _ => <xml>{[f]}(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>,
-   Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic 3 a} ∧ {renderLogic 3 b}</xml>,
-   Disj = fn (a, b) => renderParen (p>2) <xml>{renderLogic 2 a} ∨ {renderLogic 2 b}</xml>,
-   Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic 2 a} → {renderLogic 1 b}</xml>,
-   Iff = fn (a, b) => renderParen (p>1) <xml>{renderLogic 2 a} ↔ {renderLogic 2 b}</xml>,
-   Not = fn a => renderParen (p>4) <xml>¬{renderLogic 5 a}</xml>,
+   Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic False 3 a} {symbol "∧"} {renderLogic False 3 b}</xml>,
+   Disj = fn (a, b) => renderParen (p>2) <xml>{renderLogic False 2 a} {symbol "∨"} {renderLogic False 2 b}</xml>,
+   Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "→"} {renderLogic False 1 b}</xml>,
+   Iff = fn (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "↔"} {renderLogic False 2 b}</xml>,
+   Not = fn a => renderParen (p>4) <xml>{symbol "¬"}{renderLogic False 5 a}</xml>,
    Top = fn _ => <xml>⊤</xml>,
    Bot = fn _ => <xml>⊥</xml>,
-   Forall = fn (x, a) => renderParen (p>0) <xml>∀{renderName x}. {renderLogic 0 a}</xml>,
-   Exists = fn (x, a) => renderParen (p>0) <xml>∃{renderName x}. {renderLogic 0 a}</xml>}
+   Forall = fn (x, a) => renderParen (p>0) <xml>{symbol "∀"}{renderName x}. {renderLogic False 0 a}</xml>,
+   Exists = fn (x, a) => renderParen (p>0) <xml>{symbol "∃"}{renderName x}. {renderLogic False 0 a}</xml>}
+  end
 
 type sequent = { Hyps : list logic, Cons : list logic }
 val json_sequent : json sequent = json_record {Hyps = "hyps", Cons = "cons"}
@@ -123,6 +129,35 @@ fun json_tactic [a] (_ : json a) : json (tactic a) =
         RImp = "RImp", RIff = "RIff", RTop = "RTop", RBot = "RBot", RNot = "RNot", RForall = "RForall", RExists = "RExists",
         RWeaken = "Rweaken", RContract = "RContract"}
   end
+
+fun tacticDescription [a] (t : tactic a) : string = match t
+   {
+     Cut        = fn _ => "logical cut"
+   , LExact     = fn _ => ""
+   , LConj      = fn _ => "conjunction left"
+   , LDisj      = fn _ => "disjunction left"
+   , LImp       = fn _ => "implication left"
+   , LIff       = fn _ => "iff left"
+   , LBot       = fn _ => ""
+   , LTop       = fn _ => ""
+   , LNot       = fn _ => "negation left"
+   , LForall    = fn _ => "universal quantification left"
+   , LExists    = fn _ => "existential quantification left"
+   , LContract  = fn _ => ""
+   , LWeaken    = fn _ => ""
+   , RExact     = fn _ => ""
+   , RConj      = fn _ => "conjunction right"
+   , RDisj      = fn _ => "disjunction right"
+   , RImp       = fn _ => "implication right"
+   , RIff       = fn _ => "iff right"
+   , RTop       = fn _ => ""
+   , RBot       = fn _ => ""
+   , RNot       = fn _ => "negation right"
+   , RForall    = fn _ => "universal quantification right"
+   , RExists    = fn _ => "existential quantification right"
+   , RContract  = fn _ => ""
+   , RWeaken    = fn _ => ""
+   }
 
 fun tacticRenderName [a] (t : tactic a) : string = match t
    {
@@ -228,7 +263,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                         }; set prompter <xml></xml>
                     , InternalFailure = fn s => showError s; set prompter <xml></xml>
                     }
-                in set prompter <xml><div class={relMark}><div class={offsetBox}>
+                in set prompter (<xml><div class={relMark}><div class={offsetBox}>
                       <ctextbox size=6 source={r}
                         onkeyup={fn k => if eq k 13
                             then doPrompt
@@ -236,7 +271,10 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                       <button value="Go" onclick={doPrompt} />
                       <button value="Contraction" onclick={makePending g} />
                       <button value="X" onclick={set prompter <xml></xml>} />
-                    </div></div></xml>
+                      <div class={offsetInner}>
+                        To apply this inference rule, you need to<br />specify an individual to instantiate the<br />quantified variable with.  This can be<br />any lower-case expression, e.g. z or f(z).<br />Contraction lets you use a hypothesis<br />multiple times.<br />
+                      </div>
+                    </div></div></xml>)
                 end
     in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
@@ -253,8 +291,19 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Bot    = fn _ => makePending (make [#LBot] i),
                     Forall = fn _ => makePendingU prompter (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0)),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
-                    }}>
-                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Hyps;
+                    }} (* title={match x {
+                    Pred   = fn _ => "assert axiom",
+                    Conj   = fn _ => "apply conjunction left (∧l)",
+                    Disj   = fn _ => "apply disjunction left (∨l)",
+                    Imp    = fn _ => "apply implication left (→l)",
+                    Iff    = fn _ => "apply iff left (↔l)",
+                    Not    = fn _ => "apply negation left (¬l)",
+                    Top    = fn _ => "erase irrelevant hypothesis",
+                    Bot    = fn _ => "assert contradiction",
+                    Forall = fn _ => "apply forall left (∀l)",
+                    Exists = fn _ => "apply exists left (∃l)",
+                    }} *)>
+                {renderLogic True 0 (Logic.Rec x)}</span></li></xml>) s.Hyps;
     right <- List.mapXiM (fn i (Logic.Rec x) =>
               prompter <- source <xml></xml>;
               return <xml><li><dyn signal={signal prompter}/><span class={junct} onclick={match x {
@@ -268,9 +317,20 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Bot    = fn _ => makePending (make [#RBot] (i, 0)),
                     Forall = fn _ => makePending (make [#RForall] (i, 0)),
                     Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0)),
-                    }}>
-                {renderLogic 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
-    return <xml><ul class={commaList}>{left}</ul> <span class={turnstile} onclick={h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></xml>
+                    }} (* title={match x {
+                    Pred   = fn _ => "assert axiom",
+                    Conj   = fn _ => "apply conjunction right (∧r)",
+                    Disj   = fn _ => "apply disjunction right (∨r)",
+                    Imp    = fn _ => "apply implication right (→r)",
+                    Iff    = fn _ => "apply iff right (↔r)",
+                    Not    = fn _ => "apply negation right (¬r)",
+                    Top    = fn _ => "assert trivially true",
+                    Bot    = fn _ => "erase irrelevant conclusion",
+                    Forall = fn _ => "apply forall right (∀r)",
+                    Exists = fn _ => "apply exists right (∃r)",
+                    }} *)>
+                {renderLogic True 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
+    return (<xml><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></xml>)
   end
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
@@ -324,7 +384,7 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
           <tr>
             <td class={inference}>{sequent}</td>
             <td class={tagBox}>
-                <div class={tag}>{[tacticRenderName t]}</div>
+                <div class={tag}>{Js.tooltipify <xml><span title={tacticDescription t}>{[tacticRenderName t]}</span></xml>}</div>
             </td>
           </tr>
         </table></xml>
@@ -404,14 +464,14 @@ val wQuantifier : xbody =
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml></xml>
-        fun showError e = set err <xml><div class={error}>{[e]} <button onclick={clearError} value="Dismiss" /></div></xml>
+        fun showError e = set err (Js.tooltipify <xml><div class={error}>{[e]} <button onclick={clearError} value="Dismiss" /></div></xml>)
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);
                             set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
         , EndUserFailure = fn e => set proofStatus proofIsIncomplete; match e
            (* XXX assuming a bit about what update failures are... *)
-            { UpdateFailure = fn () => showError "No matching atomic clause on other side of turnstile."
+            { UpdateFailure = fn () => showError "No matching {wAtomicClause} on other side of {wTurnstile}."
             , ParseFailure = fn () => showError "Parse error."
             }
         , InternalFailure = fn s => showError s
@@ -444,27 +504,27 @@ fun mkWorkspace goal = mkWorkspaceRaw True (rpc (zapStart goal))
 fun mkExample proof = mkWorkspaceRaw True (return proof)
 
 fun tutorial () =
-  exBasic <- mkWorkspace "Γ |- Δ";
   (* XXX ewwwwwww *)
   exAxiom <- mkWorkspace "A |- A";
   exAxiomDone <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}";
   exLeft <- mkWorkspace "Γ, A |- A";
   exRight <- mkWorkspace "A |- A, Δ";
-  exDeduction <- mkWorkspace "A \/ B |- C";
-  exLConj <- mkWorkspace "Γ, A /\ B |- Δ";
-  exRConj <- mkWorkspace "Γ |- A /\ B, Δ";
-  exLDisj <- mkWorkspace "Γ, A \/ B |- Δ";
-  exRDisj <- mkWorkspace "Γ |- A \/ B, Δ";
-  exLImp <- mkWorkspace "Γ, A -> B |- Δ";
-  exRImp <- mkWorkspace "Γ |- A -> B, Δ";
-  exLNot <- mkWorkspace "Γ, ~A |- Δ";
-  exRNot <- mkWorkspace "Γ |- ~A, Δ";
-  exLNotImp <- mkWorkspace "Γ, A -> False |- Δ";
-  exRNotImp <- mkWorkspace "Γ |- A -> False, Δ";
-  exLForall <- mkWorkspace "Γ, forall x. P(x) |- Δ";
-  exRForall <- mkWorkspace "Γ |- forall x. P(x), Δ";
-  exLExists <- mkWorkspace "Γ, exists x. P(x) |- Δ";
-  exRExists <- mkWorkspace "Γ |- exists x. P(x), Δ";
+  exDeduction <- mkWorkspace "A \/ B |- A, B";
+
+  exLConj <- mkWorkspace "Γ, A /\ B |- A, Δ";
+  exRDisj <- mkWorkspace "Γ, A |- A \/ B, Δ";
+
+  exRImp <- mkWorkspace "Γ |- A -> A, Δ";
+
+  exRConj <- mkWorkspace "Γ, A, B |- A /\ B, Δ";
+  exLDisj <- mkWorkspace "Γ, A \/ B |- A, B, Δ";
+  exLImp <- mkWorkspace "Γ, A, A -> B |- B, Δ";
+  exLNot <- mkWorkspace "Γ, A, ~A |- Δ";
+  exRNot <- mkWorkspace "Γ |- ~A, A, Δ";
+  exLForall <- mkWorkspace "Γ, forall x. P(x) |- P(a), Δ";
+  exRForall <- mkWorkspace "Γ, P(a) |- forall x. P(x), Δ";
+  exLExists <- mkWorkspace "Γ, exists x. P(x) |- P(a), Δ";
+  exRExists <- mkWorkspace "Γ, P(a) |- exists x. P(x), Δ";
   exRImpClassical <- mkWorkspace "|- (A -> B) \/ A";
   exLDisjFull <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}";
   infAxiom <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":1}}}}";
@@ -491,19 +551,17 @@ fun tutorial () =
   exForallContract <- mkWorkspace "forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))";
   return <xml>
   <head>
-    <title>Interactive tutorial for Sequent Calculus in First-Order Logic</title>
+    <title>Interactive Tutorial of the Sequent Calculus</title>
     {head}
   </head>
   <body onload={
-    exBasic.Onload; exAxiom.Onload; exAxiomDone.Onload; exLeft.Onload; exRight.Onload;
+    exAxiom.Onload; exAxiomDone.Onload; exLeft.Onload; exRight.Onload;
     exAOrNotA.Onload; exAOrNotADone.Onload; exLDisjFull.Onload;
     exDeduction.Onload; exRImpClassical.Onload;
 
     exLConj.Onload; exRConj.Onload; exLImp.Onload; exRImp.Onload;
     exLDisj.Onload; exRDisj.Onload; exLNot.Onload; exRNot.Onload; exLForall.Onload; exRForall.Onload;
     exLExists.Onload; exRExists.Onload;
-
-    exLNotImp.Onload; exRNotImp.Onload;
 
     infAxiom.Onload; infLConj.Onload; infRConj.Onload; infLImp.Onload; infRImp.Onload;
     infLDisj.Onload; infRDisj.Onload; infLNot.Onload; infRNot.Onload; infLForall.Onload; infRForall.Onload;
@@ -514,57 +572,64 @@ fun tutorial () =
   }>
     <div class={page}>
 
-      <p><i>This interactive tutorial is intended to explain how to use
-      Logitext; on the way, you'll learn about the sequent calculus and
-      first-order logic, along with a little type theory and theorem
-      proving.  It is geared towards an interested software engineer who
-      has some familiarity with basic boolean logic.</i></p>
+      <p><i>This interactive tutorial will teach you how to use the
+      sequent calculus, a simple set of rules with which you can use
+      to show the truth of statements in first order logic.  It
+      is geared towards anyone with some background in writing software
+      for computers, with knowledge of basic boolean logic.</i></p>
 
-      <h2>Motivation</h2>
+      <h2>Introduction</h2>
 
-      <p>One of the first things an software engineer learns about is
-      the Boolean, and how logical operators like AND/OR/NOT let you
-      manipulate these values.  Boolean logic lies behind
-      primitive constructs such as the conditional and the loop,
-      and a simple understanding based on truth tables is usually
-      sufficient for the everyday programming.</p>
+      <p><i>Proving theorems is not for the mathematicians anymore: with
+      theorem provers, it's now a job for the hacker.</i> — Martin Rinard</p>
 
-      <p>However, if we want logic as a tool to describe the world,
-      Boolean logic is fairly inflexible.  Suppose I claim
-      "all men are mortal" and "Socrates is a man". I should then be
-      able to deduce "Socrates is mortal";  however, in Boolean logic, these three statements
-      have no relationship with each other.  We need more structure, so to speak.</p>
+      <p>I want to tell you about a neat system called the <i>sequent
+      calculus</i>. It's a way of deducing whether or not a statement is
+      true or not, but unlike proofs where the prover makes wild leaps
+      of deduction from one statement to another, the sequent calculus
+      always has a simple set of rules that is easy to check the
+      validity of.</p>
 
-      <p>We can achieve this structure using a <i>quantifier</i>,
-      encapsulating what we mean by "all men".  Formally, we'd say, "for all <i>x</i>,
-      if <i>x</i> is a man, <i>x</i> is a mortal"; symbolically,
-      we'd say "∀x. P(x) -> Q(x)", where <i>P</i> is true if and only if <i>x</i>
-      is a man, and <i>Q</i> is true if and only if <i>x</i> is mortal.  Use of quantifiers
-      on individuals takes us from Boolean logic to first-order logic.</p>
+      <p>An ordinary software engineer rarely has any need for proof,
+      even though he deals with the issues of truth and falsehood on a
+      daily basis.  His tool is boolean logic, where there are
+      propositions, and they are either true or false, and even in the
+      most complicated cases, the truth of a statement like "A or not A"
+      can be checked by checking all of the possible cases using a truth
+      table.</p>
 
-      <p>However, now there's a problem: we can't figure out if
-      something is true anymore by writing out the truth table.  When a
-      quantifier is involved, there may be infinitely many values of
-      <i>x</i> in the world, and we can't check if something is true for
-      each one.  So we need another way of reasoning about statements in
-      first-order logic.  In this tutorial, we'll focus on the question:
-      when is a statement in first-order logic <i>valid</i>, that is, it
-      is true no matter what predicates or individuals are involved.
-      Such statements make up the <i>tautologies</i> (trivially true
-      statements) of first-order logic.  Other ways of proving statements
-      in first-order logic include appealing to various equivalences;
-      however, how do you prove that an equivalence is true?  You use the
-      sequent calculus!</p>
+      <p>However, as a tool for describing the world, Boolean logic is
+      inflexible.  Suppose I claim "all men are mortal" and "Socrates is
+      a man". I should then be able to deduce "Socrates is mortal";
+      however, in Boolean logic, these three propositions have no
+      relationship with each other.  Instead, I would like a way to say the word "all", a
+      <i>quantifier</i>, is special in some sense.  It deserves to be
+      an operator like AND/OR/NOT, and have some meaning assigned to it.</p>
 
-      <p>The sequent calculus is one way of reasoning about statements in
-      first-order logic.  It sets up a self-contained formal system (similar to
-      a state machine or a Turing machine) which precisely specifies
-      what valid inferences we can make.  This specification is so precise
-      we can program it into a computer, and it is also powerful enough to let us
-      derive any true statement in first-order logic (this property is called
-      completeness.)</p>
+      <p>However, now there's a problem: we can't figure out if a
+      logical statement is true anymore by writing out the truth table.
+      We can't check that a statement about "all" individuals is true by
+      checking each individual one-by-one: there may be too many.  We need another way of
+      reasoning about these statements, which are called statements
+      in <i>first-order logic</i>.</p>
+
+      <p>There are a lot of ways to think about first-order logic.  In
+      this tutorial, we'll focus on one fundamental way of dealing with
+      statements.  It will be a little unintuitive at times, but it will
+      have the benefit of being precise, unambiguous and simple.  It is
+      so precise and simple we can program it into a computer.  But it
+      is also powerful enough to let us derive any true statement in
+      first-order logic.  You should come out of this tutorial with
+      an appreciation of how to do the symbolic manipulation of
+      the sequent calculus.</p>
 
       <h2>How it works</h2>
+
+      <p>The sequent calculus operates by a set of rules, not all of
+      which are intuitively obvious.  Our goal is to <b>learn the rules
+      of the game</b>, while at the same time becoming familiar with the
+      <b>notation</b> and <b>terminology</b> which is conventionally
+      used by mathematicians on pen and paper.</p>
 
       <p>All of the examples in this document are interactive.
       Technical terms are <span title="This is an explanation of the
@@ -572,35 +637,34 @@ fun tutorial () =
       definition.  You can reset your changes to an example by clicking
       the {wTurnstile} symbol (⊢).</p>
 
-      <p><b>Sequents.</b> Below is a {wSequent}.  You can interact with it by
-      clicking on the Γ or the Δ, which are {wClause}s, but for this
-      particular example, you will get errors, because there are no
-      valid deductions for this sequent.  The sequent reads as "Γ
-      implies Δ": the {wTurnstile} can be thought of as a sort of {wImplication}.</p>
-
-      {exBasic.Widget}
-
-      <p><b>Axioms.</b> Here is a {wSequent} which can make {wProgress}. When
-      you click on the A, a bar appears on top. This bar is conventional
-      notation which says that the sequent is <span title="That is, we
-      can assume it is true without proof.">axiomatically true</span>.
-      The only axioms in this system are when some {wAtomicClause}
-      appears on both sides of the {wTurnstile}.  A proof is complete
-      when all sequents have bars over them.</p>
+      <p><b>Sequents and axioms.</b> The turnstile is always included
+      in a {wSequent}, an example of which is displayed below.  You can
+      interact with it by clicking on the A, which are {wClause}s.  You
+      can read the sequent as "A implies A": the {wTurnstile} can be
+      thought of as a sort of {wImplication}. In this example, when you
+      click on the A, a bar appears on top, which indicates the sequent
+      is <span title="That is, we can assume it is true without
+      proof.">axiomatically true</span>.  The only axioms in this system
+      are when some {wAtomicClause} appears on both sides of the
+      {wTurnstile}.  We're done when all sequents have bars
+      over them.</p>
 
       {exAxiom.Widget}
 
       <p><b>Hypotheses on the left.</b> Read the following {wSequent} as "Γ and A imply A."
       If you click on A, you will successfully complete the proof, but if you click
-      on Γ, you will fail (because it is not a conclusion you are proving.)</p>
+      on Γ, you will fail (because it is not a conclusion you are proving.) Γ (a capital Greek gamma)
+      conventionally indicates hypotheses which are not relevant.</p>
 
       {exLeft.Widget}
 
       <p><b>Conclusions on the right.</b>  Read the following sequent as
-      "A implies A or Δ".  (Yes, comma means {wConjunction} on the
-      left, and <b>{wDisjunction}</b> on the right. One reason for this is that
-      it makes it very easy to identify axiomatically true statements:
-      if an {wAtomicClause} is on the left and on the right, then you're done.)</p>
+      "A implies A or Δ". Δ (a capital Greek delta) conventionally
+      indicates conclusions which are not relevant.  Notice that the
+      comma means {wConjunction} on the left but <b>{wDisjunction}</b>
+      on the right. One reason for this is that it makes it very easy to
+      identify axiomatically true statements: if an {wAtomicClause} is
+      on the left and on the right, then you're done.)</p>
 
       {exRight.Widget}
 
@@ -610,7 +674,7 @@ fun tutorial () =
       what about {wLogicalOperator}s?  When you click on a clause that contains
       a logical operator, the system generates one or more further {wGoal}s,
       which you need to prove.  It's its way of saying, "In order to show
-      A ∨ B ⊢ C is true, you need to show A ⊢ C is true and B ⊢ C is true."
+      A ∨ B ⊢ A, B is true, you need to show A ⊢ A, B is true and B ⊢ A, B is true."
       Notice that in both of the subgoals, there no longer is a {wDisjunction}; in
       sequent calculus, we use {wBackwardsDeduction} to get rid of logical
       operators until we have {wAtomicClause}s.</p>
@@ -623,14 +687,15 @@ fun tutorial () =
       write down.  Fortunately, for each {wLogicalOperator}, there are
       exactly two {wInferenceRule}s which say what new goals are
       generated: one for when it's on the left side of the {wTurnstile}
-      (hypothesis), and one when it's on the right (conclusion).  Here
-      is the inference rule for {wDisjunction} on the left: the Γ and Δ are
-      conventionally placeholders for other hypotheses and conclusions
-      which are not affected by the inference rule.</p>
+      (hypothesis), and one when it's on the right (conclusion).
+      You applied the rule for left-{wDisjunction} in the previous example:
+      here is the rule written out in general.</p>
 
-      {exLDisjFull.Widget}
+      <div class={proofIsDone}>{exLDisjFull.Widget}</div>
 
-      <p>The small text on the right of the bar indicates what rule was
+      <p>The Γ and Δ are placeholders for other hypotheses and conclusions:
+      in the previous example Γ was empty, and Δ was "A, B" (two clauses).
+      The text on the right of the bar indicates what rule was
       applied: the first letter indicates the logical operator involved,
       and the second letter indicates <b>l</b>eft or <b>r</b>ight.
       Together, axioms and inference rules make up the entirety of our
@@ -641,7 +706,7 @@ fun tutorial () =
       left side of the {wTurnstile} can be thought of as ANDed together, and
       the conclusions on the right side ORed together.  Thus, if I have a hypothesis
       which is an AND, or a conclusion which is an OR, we can very easily get
-      rid of the identifier.</p>
+      rid of the logical operator.</p>
 
       <table class={centerTable}>
         <tr>
@@ -665,8 +730,7 @@ fun tutorial () =
 
       <p><b>Branching rules.</b>  What about {wConjunction}, {wDisjunction} and {wImplication}
       on the other side of the {wTurnstile}?  All of these generate <i>two</i> new
-      {wGoal}s, both of which need to be proved.  Convince yourself that these
-      inference rules work.</p>
+      {wGoal}s, both of which need to be proved.</p>
 
       <table class={centerTable}>
         <tr>
@@ -699,7 +763,7 @@ fun tutorial () =
 *)
 
       <p><b>Quantifier rules.</b> The rules for the {wQuantifier}s are
-      particularly interesting.  Try clicking on these four rules:</p>
+      quite interesting.  Which of these four statements is true?</p>
 
       <table class={centerTable}>
         <tr>
@@ -712,34 +776,49 @@ fun tutorial () =
         </tr>
       </table>
 
-      <p>In the case of the left-forall rule and the right-exists rule, you (the prover) get to pick what
-      to replace <i>x</i> with.  This can be any symbol, including complicated expressions
-      like <i>f(y,g(z))</i>.</p>
+      <p>You should only be able to prove two of the four: forall left
+      (∀l) and exists right (∃r).  In both cases, the system asks you
+      for an individual to instantiate the variable with.  This variable
+      can be anything, including variables which already exist in the
+      expression.  Intuitively, it should make sense why these are the
+      two true statements: in the case of forall, if I know something
+      about all individuals, I know something about a particular
+      individual too; in the case of exists, in order to show the
+      existence of something, all you need to do is produce it.  The
+      "particular individual" and "the individual which exists" are
+      precisely what the system asks you for.</p>
 
-      <p>In the case of the right-forall rule and the left-exists rule,
-      the system picks a variable. The rules of logic demand that it
-      always pick something distinct from anything existing in the
-      sequent: this is often referred to as the "no free occurrence"
-      rule). It's generally a good idea to apply these two rules first,
-      as seen by this example:</p>
+      <p>In the case of the forall right (∀r) rule and the exists left
+      (∃l), the system picks a variable for you. But it doesn't pick any
+      old variable: variable it picks is required to be distinct from
+      anything pre-existing in the sequent: this is often referred to as
+      the "no free occurrence" rule.  One intuition for why the system
+      is constrained in this way is to consider this: it is generally
+      harder to prove something is true for all individuals than it is
+      to show it is true for only one.</p>
+
+      <p>In practice, this means is that the order you apply tactics is
+      important:</p>
 
       {exForallIdentity.Widget}
 
-      <p>If you start off with the left-forall, you are asked for a
-      value to instantiate the quantifier with.  If you fill it in, when
-      you then apply the right-forall, the system gives you a different
-      individual, and you are stuck!  If you try the proof the other
-      way, things work, because the system gives you an arbitrary
-      variable, and you can then pass that to the left-forall
-      prompt.</p>
+      <p>If you start off with the left-forall, when you apply the
+      right-forall, the system will always give you something that
+      doesn't match what you originally picked, and then you are stuck!
+      But it is easy to complete in the other direction.</p>
 
       <p>One last note: the "contraction" button duplicates a hypothesis
-      or goal, so you can reuse it later.  Use of this <i>structural
-      rule</i> may be critical to certain proofs.</p>
+      or goal, so you can reuse it later (say, you want to say that
+      because all people are mortal, then Bob is mortal, AND Sally is
+      mortal).  Use of this <i>structural rule</i> may be critical to
+      certain proofs; you will get stuck otherwise.  (This rule is
+      somewhat pardoxically called contraction because when you read the
+      rule in the normal top-down direction, it "contracts" two identical
+      hypotheses into a single one.)</p>
 
       <p><b>Summary.</b> Here are all the inference rules for first order logic:</p>
 
-      <table class={rules}>
+      <table class={classes rules green}>
       <tr><td colspan=2>{infAxiom.Widget}</td></tr>
       <tr><td>{infLNot.Widget}</td><td>{infRNot.Widget}</td></tr>
       <tr><td>{infLConj.Widget}</td><td>{infRConj.Widget}</td></tr>
@@ -749,62 +828,64 @@ fun tutorial () =
       <tr><td>{infLExists.Widget}</td><td>{infRExists.Widget}</td></tr>
       </table>
 
-      <p>With these {wInferenceRule}s, you now have the capability to
-      prove everything in first-order logic!</p>
+      <p>With these {wInferenceRule}s, you have the capability to
+      prove everything in first-order logic.</p>
 
       <h2>Exercises</h2>
-
-      <p>Nota bene: the last two require contraction.</p>
 
       {exAndIdentity.Widget}
       {exOrIdentity.Widget}
       {exDeMorgan.Widget}
       {exForallDist.Widget}
+
+      <p>Hint: these two require <span title="...which duplicates a hypothesis or conclusion and lets you use it twice, with different instantiations of the variables.">contraction</span>.</p>
+
       {exForallContract.Widget}
       {exDrinkersParadox.Widget}
 
       <h2>Conclusion</h2>
+
+      <p>I want to leave you with some parting words about why I find
+      this topic interesting.</p>
 
       <p>First-order logic is well worth studying, because it is a
       simple yet powerful tool for modelling the world and writing
       specifications and constraints.  These constraints can be given to
       tools called SMT solvers, which can then automatically determine
       how to satisfy these constraints.  You can't do that with plain
-      English.  There are a lot of other ways of understanding
-      first-order logic, and some important facts about it that we
-      haven't included here; we refer the reader to other texts for
-      more information.</p>
+      English!</p>
 
-      <p>This tutorial has heavily emphasized the sequent calculus as a
-      deductive system. One downside to it, which you may have noticed
-      as you did some of the exercises, is that it makes proofs of
-      certain statements a bit harder and a bit more obscure than it
-      would be if you were reasoning informally.  "I clicked around and
-      managed to prove this, but I'm not really sure what happened!"
-      This is much of the point of being formal: the proof should be
-      brainless enough that even a computer can understand it!  In fact,
-      working with the sequent calculus is a <i>lot</i> like working
-      with a proof assistant.  If you're interested in tackling more
-      complicated problems than presented here, I suggest checking out a
-      textbook like <a
-      href="http://www.cis.upenn.edu/~bcpierce/sf/">Software
+      <p>A common complaint with a formal systems like the sequent
+      calculus is the "I clicked around and managed to prove this, but
+      I'm not really sure what happened!" This is what Martin means by
+      the hacker mentality: it is now possible for people to prove
+      things, even when they don't know what they're doing.  The
+      computer will ensure that, in the end, they will have gotten it
+      <i>right</i>.  (You don't even have to test it, and there are no
+      bugs!  Of course, it does help to know what you are doing.)  Writ
+      large, working with this demo is like working with a proof
+      assistant.  If you're interested in tackling more complicated
+      problems than presented here, I suggest checking out a textbook
+      like <a href="http://www.cis.upenn.edu/~bcpierce/sf/">Software
       Foundations</a>.</p>
 
-      <p>There is one other important reason for learning a deductive
-      system like the sequent calculus.  the notation and concepts
-      introduced here are relied upon heavily in the academic type
-      theory literature.  Inference rules in this setting are
-      considerably more complicated, so studying a simpler set of rules
-      is a key step on the way to being able to "read the Greek."  There
-      is a reason why they are so well used: inference rules are a
-      remarkably compact and efficient way to describe a type system:
-      their use is analogous to the use of BNFs to specify grammars.  My
-      hope is that this tutorial has helped you take your first step
-      into the fascinating world of formal systems, type theory and
-      theorem proving.</p>
+      <p>One primary motivation for this tutorial, which constrained the
+      user interface design considerably, was to demonstrate the
+      notation and concepts relied upon heavily in the academic type
+      theory literature.  As an undergraduate, I always found inference
+      rules to be some of the most intimidating parts of academic papers
+      in programming languages.  Studying how these conventions work in
+      a simpler setting is a key step on the way to being able to "read
+      the Greek." While some of the notational choices may seem
+      hair-brained to a modern viewer, overall the system is very well
+      optimized.  Inference rules are a remarkably compact and efficient
+      way to describe many types of systems: the space savings are
+      analogous to using BNFs to specify grammars.</p>
 
-      <p>Return to <a link={main ()}>the main page</a>, and try coming up with
-      some theorems of your own!</p>
+      <p>Overall, my hope is that this tutorial has helped you take your
+      first step into the fascinating world of formal systems, type
+      theory and theorem proving.  Return to <a link={main ()}>the main
+      page</a>, and try coming up with some theorems of your own!</p>
 
     </div>
   </body>

@@ -10,6 +10,7 @@ script http://localhost/logitext/jquery.js
 script http://localhost/logitext/jquery.tipsy.js
 script http://localhost/logitext/ffi.js
 jsFunc Js.infinitedrag=infinitedrag
+jsFunc Js.tooltipify=tooltipify
 clientOnly Js.infinitedrag
 clientOnly Logitext.renderProof
 clientOnly Logitext.renderSequent

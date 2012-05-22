@@ -10,11 +10,12 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .proof table { width:100%; border-collapse:collapse; margin: auto; }
 .proof td { padding:0; border:0; margin:0; text-align:center; }
 .proof .sibling { display: inline-block; vertical-align:bottom; }
-.proof .tagBox { font-size: 0.8em; color: #666; vertical-align: top; width: 2.1em; padding-left:0.3em; padding-right:0.6em; }
+.proof .tagBox { font-size: 0.8em; color: #444; vertical-align: top; width: 2.1em; padding-left:0.3em; padding-right:0.6em; }
 .proof .tagBox .tag { position:relative; top:-0.7em;}
 .proof .inference { border-top: 1px solid #000; }
 .proof .junct:hover { background: #DDF; cursor:pointer; }
 .proof .turnstile:hover { background: #FDD; cursor:pointer; }
+.proof .junct:hover .primaryConnective { background: #005; color: #FFF; }
 
 /* hat tip http://petewilliams.info/blog/2010/04/display-html-olul-list-as-comma-separated-sentence/ */
 .commaList { display: inline; list-style: none; margin: 0; padding: 0; }
@@ -24,7 +25,8 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 
 /* hat tip http://stackoverflow.com/questions/6040005/relatively-position-an-element-without-it-taking-up-space-in-document-flow */
 .relMark {position:relative; width:0; height:0; display:inline;}
-.offsetBox {position:absolute; z-index:1; top:0.2em; left:-1em; background-color:#FFF; border:1px solid #CCC;padding:2px;}
+.offsetBox {position:absolute; z-index:1; top:0.2em; left:-1em; background-color:#FFF; border:1px solid #CCC;padding:2px; overflow:hidden; width:15em;}
+.offsetInner {font-size:0.7em; text-align:left; }
 .offsetBox input {border:1px solid #999; background:#FFF;}
 
 .error {margin-top:-0.5em; border:1px solid #900; padding:0.4em 2em; background: #F99; }
@@ -34,6 +36,7 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .centerTable {margin:1em auto;}
 
 .proofIsDone .proof {background:#CFC;}
+.green {background:#CFC;}
 .proofIsPending .proof {background:#FCFCBB;}
 .proofIsIncomplete .proof {}
 

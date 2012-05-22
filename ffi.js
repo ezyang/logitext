@@ -13,6 +13,19 @@ function infinitedrag(draggable, contents) {
     }});
 }
 
+function tooltipify(contents) {
+    nid = fresh();
+    // lol lol undocument Ur/Web stuff
+    return cat(cat("<div id=\"" + nid + "\">", contents), "<script type=\"text/javascript\">runtip(\"" + nid + "\");</script></div>");
+}
+
+function runtip(nid) {
+    // Ur/Web runs the embedded JavaScript too early, so you need to
+    // schedule it later
+    setTimeout(function() {$("#" + nid + " *[title]").tipsy()}, 0);
+}
+
 $(document).ready(function(){
-    $('span[title]').tipsy({opacity:1}).addClass("explained");
+    // doesn't hit rpc generated things
+    $('span[title]').tipsy().addClass("explained");
 });
