@@ -3,6 +3,9 @@
 // (c) 2008-2010 jason frame [jason@onehackoranother.com]
 // released under the MIT license
 
+var activeTooltip = null;
+var globalHoverState = 'out';
+
 (function($) {
     
     function maybeCall(thing, ctx) {
@@ -18,11 +21,17 @@
     
     Tipsy.prototype = {
         show: function() {
+            if (activeTooltip) activeTooltip.hide();
+            activeTooltip = this;
             var title = this.getTitle();
             if (title && this.enabled) {
                 var $tip = this.tip();
                 
-                $tip.find('.tipsy-inner')[this.options.html ? 'html' : 'text'](title);
+                if (this.options.html) {
+                    setInnerHTML($tip.find('.tipsy-inner')[0], title);
+                } else {
+                    $tip.find('.tipsy-inner')['text'](title);
+                }
                 $tip[0].className = 'tipsy'; // reset classname in case of dynamic gravity
                 $tip.remove().css({top: 0, left: 0, visibility: 'hidden', display: 'block'}).prependTo(document.body);
                 
@@ -70,6 +79,7 @@
                 } else {
                     $tip.css({visibility: 'visible', opacity: this.options.opacity});
                 }
+
             }
         },
         
@@ -90,6 +100,9 @@
         
         getTitle: function() {
             var title, $e = this.$element, o = this.options;
+            if (o.value != null) {
+                return o.value;
+            }
             this.fixTitle();
             var title, o = this.options;
             if (typeof o.title == 'string') {
@@ -144,31 +157,25 @@
         
         function enter() {
             var tipsy = get(this);
-            tipsy.hoverState = 'in';
-            if (options.delayIn == 0) {
-                tipsy.show();
-            } else {
-                tipsy.fixTitle();
-                setTimeout(function() { if (tipsy.hoverState == 'in') tipsy.show(); }, options.delayIn);
-            }
+            oldState = globalHoverState;
+            globalHoverState = 'in';
+            if (oldState == 'out') tipsy.show();
+            tipsy.tip().bind('mouseenter', enter);
+            tipsy.tip().bind('mouseleave', leave);
         };
         
         function leave() {
-            var tipsy = get(this);
-            tipsy.hoverState = 'out';
-            if (options.delayOut == 0) {
-                tipsy.hide();
-            } else {
-                setTimeout(function() { if (tipsy.hoverState == 'out') tipsy.hide(); }, options.delayOut);
-            }
+            globalHoverState = 'pend';
+            // looks like the old tipsy is wrong
+            setTimeout(function() { if (globalHoverState == 'pend') { if (activeTooltip) {activeTooltip.hide();} globalHoverState = 'out'; } }, 0);
         };
         
         if (!options.live) this.each(function() { get(this); });
         
         if (options.trigger != 'manual') {
             var binder   = options.live ? 'live' : 'bind',
-                eventIn  = options.trigger == 'hover' ? 'mouseenter' : 'focus',
-                eventOut = options.trigger == 'hover' ? 'mouseleave' : 'blur';
+                eventIn  = options.trigger == 'hover' ? 'mouseenter' : 'click',
+                eventOut = 'mouseleave';
             this[binder](eventIn, enter)[binder](eventOut, leave);
         }
         
@@ -178,8 +185,6 @@
     
     $.fn.tipsy.defaults = {
         className: null,
-        delayIn: 0,
-        delayOut: 0,
         fade: false,
         fallback: '',
         gravity: 'n',
@@ -188,7 +193,8 @@
         offset: 0,
         opacity: 1,
         title: 'title',
-        trigger: 'hover'
+        trigger: 'hover',
+        value: null
     };
     
     // Overwrite this method to provide options on a per-element basis.

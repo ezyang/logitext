@@ -249,7 +249,7 @@ fun proofComplete (Proof.Rec p) : bool =
 
 fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
-        fun makePendingU prompter (f : universe -> tactic int) (g : tactic int) : transaction unit =
+        fun makePendingU (f : universe -> tactic int) (g : tactic int) : transaction xbody =
                 r <- source "";
                 let val doPrompt =
                     rawu <- get r;
@@ -259,28 +259,26 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     , EndUserFailure = fn e => match e
                         { UpdateFailure = fn () => showError <xml>Invalid universe element.</xml>
                         , ParseFailure = fn () => showError <xml>Parse error.</xml>
-                        }; set prompter <xml></xml>
-                    , InternalFailure = fn s => showError <xml>{[s]}</xml>; set prompter <xml></xml>
+                        }
+                    , InternalFailure = fn s => showError <xml>{[s]}</xml>
                     }
                 in nid <- fresh;
-                   set prompter (Js.autofocus nid <xml><div class={relMark}><div class={offsetBox}>
+                   return (Js.autofocus nid <xml><div>
                       <ctextbox id={nid} size=6 source={r}
                         onkeyup={fn k => if eq k 13
                             then doPrompt
                             else return ()} />
                       <button value="Go" onclick={doPrompt} />
-                      <button value="Contraction" onclick={makePending g} />
-                      <button value="X" onclick={set prompter <xml></xml>} />
-                      <div class={offsetInner}>
-                        To apply this inference rule, you need to<br />specify an individual to instantiate the<br />quantified variable with.  This can be<br />any lower-case expression, e.g. z or f(z).<br />Contraction lets you use a hypothesis<br />multiple times.<br />
+                      <button value="Contract" onclick={makePending g} />
+                      <div>
+                        To apply this inference rule, you need to specify an individual to instantiate the quantified variable with.  This can be any lower-case expression, e.g. z or f(z). Contraction lets you use a hypothesis multiple times.
                       </div>
-                    </div></div></xml>)
+                    </div></xml>)
                 end
     in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
-              (* XXX suboptimal; only want to allocate prompter when necessary *)
-              prompter <- source <xml></xml>;
-              return <xml><li><dyn signal={signal prompter}/><span class={junct} onclick={match x {
+              nid <- fresh;
+              let val bod = <xml><li id={nid}><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#LExact] i),
                     Conj   = fn _ => makePending (make [#LConj] (i, 0)),
                     Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
@@ -289,7 +287,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Not    = fn _ => makePending (make [#LNot] (i, 0)),
                     Top    = fn _ => makePending (make [#LTop] (i, 0)),
                     Bot    = fn _ => makePending (make [#LBot] i),
-                    Forall = fn _ => makePendingU prompter (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0)),
+                    Forall = fn _ => return (),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }} (* title={match x {
                     Pred   = fn _ => "assert axiom",
@@ -303,10 +301,27 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Forall = fn _ => "apply forall left (∀l)",
                     Exists = fn _ => "apply exists left (∃l)",
                     }} *)>
-                {renderLogic True 0 (Logic.Rec x)}</span></li></xml>) s.Hyps;
+                {renderLogic True 0 (Logic.Rec x)}</span></li></xml>
+              in
+              match x {
+                Pred   = fn _ => return bod,
+                Conj   = fn _ => return bod,
+                Disj   = fn _ => return bod,
+                Imp    = fn _ => return bod,
+                Iff    = fn _ => return bod,
+                Not    = fn _ => return bod,
+                Top    = fn _ => return bod,
+                Bot    = fn _ => return bod,
+                Forall = fn _ =>
+                    r <- makePendingU (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0));
+                    Js.tipHTML nid bod r,
+                Exists = fn _ => return bod
+              }
+              end
+            ) s.Hyps;
     right <- List.mapXiM (fn i (Logic.Rec x) =>
-              prompter <- source <xml></xml>;
-              return <xml><li><dyn signal={signal prompter}/><span class={junct} onclick={match x {
+              nid <- fresh;
+              let val bod = <xml><li id={nid}><span class={junct} onclick={match x {
                     Pred   = fn _ => makePending (make [#RExact] i),
                     Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
                     Disj   = fn _ => makePending (make [#RDisj] (i, 0)),
@@ -316,7 +331,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Top    = fn _ => makePending (make [#RTop] i),
                     Bot    = fn _ => makePending (make [#RBot] (i, 0)),
                     Forall = fn _ => makePending (make [#RForall] (i, 0)),
-                    Exists = fn _ => makePendingU prompter (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0)),
+                    Exists = fn _ => return ()
                     }} (* title={match x {
                     Pred   = fn _ => "assert axiom",
                     Conj   = fn _ => "apply conjunction right (∧r)",
@@ -329,8 +344,26 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Forall = fn _ => "apply forall right (∀r)",
                     Exists = fn _ => "apply exists right (∃r)",
                     }} *)>
-                {renderLogic True 0 (Logic.Rec x)}</span></li></xml>) s.Cons;
-    return (<xml><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></xml>)
+                {renderLogic True 0 (Logic.Rec x)}</span></li></xml>
+              in
+              match x {
+                Pred   = fn _ => return bod,
+                Conj   = fn _ => return bod,
+                Disj   = fn _ => return bod,
+                Imp    = fn _ => return bod,
+                Iff    = fn _ => return bod,
+                Not    = fn _ => return bod,
+                Top    = fn _ => return bod,
+                Bot    = fn _ => return bod,
+                Forall = fn _ => return bod,
+                Exists = fn _ =>
+                    r <- makePendingU (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0));
+                    Js.tipHTML nid bod r
+              }
+              end
+        ) s.Cons;
+    nid <- fresh;
+    return ( (* Js.tipInner nid *) <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>)
   end
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
@@ -483,13 +516,18 @@ fun mkWorkspaceRaw showErrors mproof =
   v <- source <xml></xml>;
   err <- source <xml></xml>;
   proofStatus <- source proofIsIncomplete;
+  bamf <- source <xml></xml>;
   let fun handler x =
     set proofStatus proofIsPending;
+    nid <- fresh;
+    js <- Js.activate nid "clearTooltips";
+    set bamf js;
     bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
   in return {
     Onload = bind mproof (handleResultProof handler v proofStatus err),
     Widget = <xml>
           <div class={working}>
+            <dyn signal={signal bamf} />
             <div dynClass={signal proofStatus}>
               <div class={proof}>
                 <dyn signal={signal v}/>

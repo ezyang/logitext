@@ -13,19 +13,42 @@ function infinitedrag(draggable, contents) {
     }});
 }
 
-function addOnloadHandler(nid, contents, func) {
-    // undocumented Ur/Web function 'cat'
-    return cat(contents, "<script type=\"text/javascript\">setTimeout(function() {" + func + "(\"" + nid + "\")},0);</script>");
+function activate(nid, code) {
+    console.log("activate");
+    return "<script type=\"text/javascript\">setTimeout(function() {" + code + "(\"" + nid + "\");},0);</script>";
 }
 
-function tip(nid, contents) { return addOnloadHandler(nid, contents, "dotip"); }
-function dotip(nid) { $("#" + nid).tipsy().addClass("explained"); }
+function addOnloadHandler(nid, fid, contents, func) {
+    // undocumented Ur/Web function 'cat'
+    return cat(contents, "<script type=\"text/javascript\">setTimeout(function() {" + func + "(\"" + fid + "\", \"" + nid + "\")},0);</script>");
+}
 
-function tipInner(nid, contents) { return addOnloadHandler(nid, contents, "dotipInner"); }
-function dotipInner(nid) { $("#" + nid + " span[title]").tipsy().addClass("explained"); }
+var globalTempData = {}
+function tipHTML(nid, contents, tipcontents) {
+    fid = fresh();
+    globalTempData[fid] = tipcontents;
+    return addOnloadHandler(nid, fid, contents, "dotipHTML");
+}
+function dotipHTML(fid, nid) {
+    var data = globalTempData[fid];
+    delete globalTempData[fid];
+    $("#" + nid).tipsy({html: true, value: data, trigger: "click"}).addClass("explained");
+}
 
-function autofocus(nid, contents) { return addOnloadHandler(nid, contents, "doautofocus"); }
-function doautofocus(nid) { $("#" + nid).focus(); }
+function tip(nid, contents) { return addOnloadHandler(nid, "", contents, "dotip"); }
+function dotip(fid, nid) {
+    $("#" + nid).tipsy().addClass("explained");
+}
+
+function tipInner(nid, contents) { return addOnloadHandler(nid, "", contents, "dotipInner"); }
+function dotipInner(fid, nid) {
+    $("#" + nid + " span[title]").tipsy().addClass("explained");
+}
+
+function autofocus(nid, contents) { return addOnloadHandler(nid, "", contents, "doautofocus"); }
+function doautofocus(fid, nid) { $("#" + nid).focus(); }
+
+function clearTooltips() { console.log("clearTooltips"); if (activeTooltip) { activeTooltip.hide(); globalHoverState = 'out'; } }
 
 $(document).ready(function(){
     $('span[title]').tipsy().addClass("explained"); // only runs once, before rpcs
