@@ -159,11 +159,11 @@ var globalHoverState = 'out';
             var tipsy = get(this);
             oldState = globalHoverState;
             globalHoverState = 'in';
-            if (oldState == 'out' || (oldState == 'pend' && tipsy != activeTooltip)) {
+            if (oldState == 'out' || (oldState == 'pend' && tipsy["0"] !== activeTooltip["0"])) {
                 if (activeTooltip) activeTooltip.hide();
+                tipsy.show();
                 tipsy.tip().bind('mouseenter', enter);
                 tipsy.tip().bind('mouseleave', leave);
-                tipsy.show();
             }
         };
         
@@ -176,8 +176,8 @@ var globalHoverState = 'out';
         if (!options.live) this.each(function() { get(this); });
         
         if (options.trigger == 'oneway') {
-            this['bind']('click', enter);
-        } if (options.trigger != 'manual') {
+            this['bind']('click', enter)['bind']('mouseleave', leave);
+        } else if (options.trigger != 'manual') {
             var binder   = options.live ? 'live' : 'bind',
                 eventIn  = options.trigger == 'hover' ? 'mouseenter' : 'click',
                 eventOut = 'mouseleave';
