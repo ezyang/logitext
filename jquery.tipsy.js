@@ -21,7 +21,6 @@ var globalHoverState = 'out';
     
     Tipsy.prototype = {
         show: function() {
-            if (activeTooltip) activeTooltip.hide();
             activeTooltip = this;
             var title = this.getTitle();
             if (title && this.enabled) {
@@ -160,9 +159,12 @@ var globalHoverState = 'out';
             var tipsy = get(this);
             oldState = globalHoverState;
             globalHoverState = 'in';
-            if (oldState == 'out') tipsy.show();
-            tipsy.tip().bind('mouseenter', enter);
-            tipsy.tip().bind('mouseleave', leave);
+            if (oldState == 'out' || (oldState == 'pend' && tipsy != activeTooltip)) {
+                if (activeTooltip) activeTooltip.hide();
+                tipsy.tip().bind('mouseenter', enter);
+                tipsy.tip().bind('mouseleave', leave);
+                tipsy.show();
+            }
         };
         
         function leave() {
@@ -173,7 +175,9 @@ var globalHoverState = 'out';
         
         if (!options.live) this.each(function() { get(this); });
         
-        if (options.trigger != 'manual') {
+        if (options.trigger == 'oneway') {
+            this['bind']('click', enter);
+        } if (options.trigger != 'manual') {
             var binder   = options.live ? 'live' : 'bind',
                 eventIn  = options.trigger == 'hover' ? 'mouseenter' : 'click',
                 eventOut = 'mouseleave';

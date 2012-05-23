@@ -14,13 +14,12 @@ function infinitedrag(draggable, contents) {
 }
 
 function activate(nid, code) {
-    console.log("activate");
     return "<script type=\"text/javascript\">setTimeout(function() {" + code + "(\"" + nid + "\");},0);</script>";
 }
 
 function addOnloadHandler(nid, fid, contents, func) {
     // undocumented Ur/Web function 'cat'
-    return cat(contents, "<script type=\"text/javascript\">setTimeout(function() {" + func + "(\"" + fid + "\", \"" + nid + "\")},0);</script>");
+    return cat(contents, "<script type=\"text/javascript\">setTimeout(function() {" + func + "(\"" + fid + "\", \"" + nid + "\")},50);</script>");
 }
 
 var globalTempData = {}
@@ -32,7 +31,8 @@ function tipHTML(nid, contents, tipcontents) {
 function dotipHTML(fid, nid) {
     var data = globalTempData[fid];
     delete globalTempData[fid];
-    $("#" + nid).tipsy({html: true, value: data, trigger: "click", fade: true}).addClass("explained");
+    clearTooltips();
+    $("#" + nid).tipsy({html: true, value: data, trigger: "oneway", fade: true}).addClass("explained");
 }
 
 function tip(nid, contents) { return addOnloadHandler(nid, "", contents, "dotip"); }
@@ -48,8 +48,9 @@ function dotipInner(fid, nid) {
 function autofocus(nid, contents) { return addOnloadHandler(nid, "", contents, "doautofocus"); }
 function doautofocus(fid, nid) { $("#" + nid).focus(); }
 
-function clearTooltips() { console.log("clearTooltips"); if (activeTooltip) { activeTooltip.hide(); globalHoverState = 'out'; } }
+function clearTooltips() { if (activeTooltip) { activeTooltip.hide(); globalHoverState = 'out'; } }
 
 $(document).ready(function(){
     $('span[title]').tipsy().addClass("explained"); // only runs once, before rpcs
+    $(document).keyup(function(e) {if (uw_event.keyCode == 27) clearTooltips();});
 });

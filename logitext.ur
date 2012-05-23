@@ -986,9 +986,9 @@ and main () =
           {tryProof "A \/ ~A"}
           {tryProof "(forall x, P(x)) -> (exists x, P(x))"}
         </ul>
-        <p>By convention, capitalized identifiers represent propositions
-        and predicates, while lower-case identifiers represent functions
-        and elements of the universe.</p>
+        <p>Logitext is case-sensitive: capitalized identifiers represent
+        propositions and predicates, while lower-case identifiers
+        represent functions and elements of the universe.</p>
         </div>
       </body>
     </xml>
