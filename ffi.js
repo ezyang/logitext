@@ -24,6 +24,9 @@ function dotip(nid) { $("#" + nid).tipsy().addClass("explained"); }
 function tipInner(nid, contents) { return addOnloadHandler(nid, contents, "dotipInner"); }
 function dotipInner(nid) { $("#" + nid + " span[title]").tipsy().addClass("explained"); }
 
+function autofocus(nid, contents) { return addOnloadHandler(nid, contents, "doautofocus"); }
+function doautofocus(nid) { $("#" + nid).focus(); }
+
 $(document).ready(function(){
     $('span[title]').tipsy().addClass("explained"); // only runs once, before rpcs
 });

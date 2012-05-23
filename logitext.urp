@@ -12,6 +12,7 @@ script http://localhost/logitext/ffi.js
 jsFunc Js.infinitedrag=infinitedrag
 jsFunc Js.tip=tip
 jsFunc Js.tipInner=tipInner
+jsFunc Js.autofocus=autofocus
 clientOnly Js.infinitedrag
 clientOnly Logitext.renderProof
 clientOnly Logitext.renderSequent

@@ -251,7 +251,6 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
         fun makePendingU prompter (f : universe -> tactic int) (g : tactic int) : transaction unit =
                 r <- source "";
-                (* XXX would be nice if the ctextbox automatically grabbed focus *)
                 let val doPrompt =
                     rawu <- get r;
                     u <- rpc (zapParseUniverse rawu);
@@ -263,8 +262,9 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                         }; set prompter <xml></xml>
                     , InternalFailure = fn s => showError <xml>{[s]}</xml>; set prompter <xml></xml>
                     }
-                in set prompter (<xml><div class={relMark}><div class={offsetBox}>
-                      <ctextbox size=6 source={r}
+                in nid <- fresh;
+                   set prompter (Js.autofocus nid <xml><div class={relMark}><div class={offsetBox}>
+                      <ctextbox id={nid} size=6 source={r}
                         onkeyup={fn k => if eq k 13
                             then doPrompt
                             else return ()} />
