@@ -167,16 +167,34 @@ var globalHoverState = 'out';
             }
         };
         
+        function clickEnter() { // ugly hack; can't seem to call enter after frobbing globalHoverState
+                                // since that appears to destroy some state
+            var tipsy = get(this);
+            oldState = globalHoverState;
+            globalHoverState = 'in';
+            if (activeTooltip) activeTooltip.hide();
+            tipsy.show();
+            tipsy.tip().bind('mouseenter', enter);
+            tipsy.tip().bind('mouseleave', leave);
+        };
+        
         function leave() {
             globalHoverState = 'pend';
             // looks like the old tipsy is wrong
-            setTimeout(function() { if (globalHoverState == 'pend') { if (activeTooltip) {activeTooltip.hide();} globalHoverState = 'out'; } }, options.html ? 1000 : 0);
+            setTimeout(function() {
+                if (globalHoverState == 'pend') {
+                    if (activeTooltip) {
+                        activeTooltip.hide();
+                    };
+                    globalHoverState = 'out';
+                }
+            }, options.html ? 1000 : 0);
         };
         
         if (!options.live) this.each(function() { get(this); });
         
         if (options.trigger == 'oneway') {
-            this['bind']('click', enter)['bind']('mouseleave', leave);
+            this['bind']('click', clickEnter)['bind']('mouseleave', leave);
         } else if (options.trigger != 'manual') {
             var binder   = options.live ? 'live' : 'bind',
                 eventIn  = options.trigger == 'hover' ? 'mouseenter' : 'click',
