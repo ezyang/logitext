@@ -1,2 +1,3 @@
 val infinitedrag : id -> xbody -> transaction unit
-val tooltipify : xbody -> xbody
+val tip : id -> xbody -> xbody
+val tipInner : id -> xbody -> xbody

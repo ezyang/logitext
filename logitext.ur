@@ -378,13 +378,14 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
           RIff      = double (make [#RIff]),
           RConj     = double (make [#RConj])
        };
+       nid <- fresh;
        return <xml>
         <div>{top}</div>
         <table>
           <tr>
             <td class={inference}>{sequent}</td>
             <td class={tagBox}>
-                <div class={tag}>{Js.tooltipify <xml><span title={tacticDescription t}>{[tacticRenderName t]}</span></xml>}</div>
+                <div class={tag}>{Js.tip nid <xml><span title={tacticDescription t} id={nid}>{[tacticRenderName t]}</span></xml>}</div>
             </td>
           </tr>
         </table></xml>
@@ -464,7 +465,7 @@ val wQuantifier : xbody =
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml></xml>
-        fun showError (e : xbody) = set err (Js.tooltipify <xml><div class={error}>{e} <button onclick={clearError} value="Dismiss" /></div></xml>)
+        fun showError (e : xbody) = nid <- fresh; set err (Js.tipInner nid <xml><div class={error}>{e} <button onclick={clearError} value="Dismiss" /></div></xml>)
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);

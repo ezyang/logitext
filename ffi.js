@@ -13,19 +13,17 @@ function infinitedrag(draggable, contents) {
     }});
 }
 
-function tooltipify(contents) {
-    nid = fresh();
-    // lol lol undocument Ur/Web stuff
-    return cat(cat("<div id=\"" + nid + "\">", contents), "<script type=\"text/javascript\">runtip(\"" + nid + "\");</script></div>");
+function addOnloadHandler(nid, contents, func) {
+    // undocumented Ur/Web function 'cat'
+    return cat(contents, "<script type=\"text/javascript\">setTimeout(function() {" + func + "(\"" + nid + "\")},0);</script>");
 }
 
-function runtip(nid) {
-    // Ur/Web runs the embedded JavaScript too early, so you need to
-    // schedule it later
-    setTimeout(function() {$("#" + nid + " *[title]").tipsy().addClass("explained")}, 0);
-}
+function tip(nid, contents) { return addOnloadHandler(nid, contents, "dotip"); }
+function dotip(nid) { $("#" + nid).tipsy().addClass("explained"); }
+
+function tipInner(nid, contents) { return addOnloadHandler(nid, contents, "dotipInner"); }
+function dotipInner(nid) { $("#" + nid + " span[title]").tipsy().addClass("explained"); }
 
 $(document).ready(function(){
-    // doesn't hit rpc generated things
-    $('span[title]').tipsy().addClass("explained");
+    $('span[title]').tipsy().addClass("explained"); // only runs once, before rpcs
 });
