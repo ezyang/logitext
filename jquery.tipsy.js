@@ -162,8 +162,10 @@ var globalHoverState = 'out';
             if (oldState == 'out' || (oldState == 'pend' && tipsy["0"] !== activeTooltip["0"])) {
                 if (activeTooltip) activeTooltip.hide();
                 tipsy.show();
-                tipsy.tip().bind('mouseenter', enter);
-                tipsy.tip().bind('mouseleave', leave);
+                if (options.html) {
+                    tipsy.tip().bind('mouseenter', enter);
+                    tipsy.tip().bind('mouseleave', leave);
+                }
             }
         };
         
@@ -174,8 +176,10 @@ var globalHoverState = 'out';
             globalHoverState = 'in';
             if (activeTooltip) activeTooltip.hide();
             tipsy.show();
-            tipsy.tip().bind('mouseenter', enter);
-            tipsy.tip().bind('mouseleave', leave);
+            if (options.html) {
+                tipsy.tip().bind('mouseenter', enter);
+                tipsy.tip().bind('mouseleave', leave);
+            }
         };
         
         function leave() {
