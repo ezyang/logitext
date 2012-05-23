@@ -85,6 +85,7 @@ var globalHoverState = 'out';
         
         hide: function() {
             if (this.options.fade) {
+                this.tip().unbind();
                 this.tip().stop().fadeOut(function() { $(this).remove(); });
             } else {
                 this.tip().remove();
@@ -167,7 +168,7 @@ var globalHoverState = 'out';
         function leave() {
             globalHoverState = 'pend';
             // looks like the old tipsy is wrong
-            setTimeout(function() { if (globalHoverState == 'pend') { if (activeTooltip) {activeTooltip.hide();} globalHoverState = 'out'; } }, 0);
+            setTimeout(function() { if (globalHoverState == 'pend') { if (activeTooltip) {activeTooltip.hide();} globalHoverState = 'out'; } }, options.html ? 1000 : 0);
         };
         
         if (!options.live) this.each(function() { get(this); });

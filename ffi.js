@@ -32,7 +32,7 @@ function tipHTML(nid, contents, tipcontents) {
 function dotipHTML(fid, nid) {
     var data = globalTempData[fid];
     delete globalTempData[fid];
-    $("#" + nid).tipsy({html: true, value: data, trigger: "click"}).addClass("explained");
+    $("#" + nid).tipsy({html: true, value: data, trigger: "click", fade: true}).addClass("explained");
 }
 
 function tip(nid, contents) { return addOnloadHandler(nid, "", contents, "dotip"); }
