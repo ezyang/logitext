@@ -624,7 +624,7 @@ fun tutorial () =
 
       <p>I want to tell you about a neat system called the <i>sequent
       calculus</i>. It's a way of deducing whether or not a statement is
-      true or not, but unlike proofs where the prover makes wild leaps
+      true, but unlike proofs where the prover makes wild leaps
       of deduction from one statement to another, the sequent calculus
       always has a simple set of rules that is easy to check the
       validity of.</p>
@@ -829,7 +829,7 @@ fun tutorial () =
 
       <p>In the case of the forall right (∀r) rule and the exists left
       (∃l), the system picks a variable for you. But it doesn't pick any
-      old variable: variable it picks is required to be distinct from
+      old variable: the variable it picks is required to be distinct from
       anything pre-existing in the sequent: this is often referred to as
       the "no free occurrence" rule.  One intuition for why the system
       is constrained in this way is to consider this: it is generally
@@ -851,7 +851,7 @@ fun tutorial () =
       because all people are mortal, then Bob is mortal, AND Sally is
       mortal).  Use of this <i>structural rule</i> may be critical to
       certain proofs; you will get stuck otherwise.  (This rule is
-      somewhat pardoxically called contraction because when you read the
+      somewhat paradoxically called contraction because when you read the
       rule in the normal top-down direction, it "contracts" two identical
       hypotheses into a single one.)</p>
 
@@ -926,6 +926,9 @@ fun tutorial () =
       theory and theorem proving.  Return to <a link={main ()}>the main
       page</a>, and try coming up with some theorems of your own!</p>
 
+      <p><i>Colophon.</i> This tutorial is powered by <a href="http://coq.inria.fr/">Coq</a>,
+        <a href="http://www.haskell.org">Haskell</a> and <a href="http://www.impredicative.com/ur/">Ur/Web</a>.</p>
+
     </div>
   </body>
   </xml>
@@ -972,8 +975,10 @@ and main () =
         logic</i> using the <i>sequent calculus</i>, in the same tradition as Jape, Pandora, Panda and Yoda.
         It is intended to assist students who are learning <i>Gentzen trees</i>
         as a way of structuring derivations of logical statements.
-        Underneath the hood, Logitext interfaces with Coq in order to check
-        the validity of your proof steps. Get the source at
+        Underneath the hood, Logitext interfaces with <a href="http://coq.inria.fr/">Coq</a> in order to check
+        the validity of your proof steps.  The frontend is written in
+        <a href="http://www.haskell.org">Haskell</a> and <a href="http://www.impredicative.com/ur/">Ur/Web</a>, and there is an
+        interesting story behind it which you can <a href="http://blog.ezyang.com/2012/05/what-happens-when-you-mix-three-research-programming-languages-together/">read about</a>. Alternatively, get the source at
         <a href="https://github.com/ezyang/logitext">GitHub</a>.</p>
         <p>To get started, check out the <a link={tutorial ()}>tutorial</a>, or dive right
         in and type in something to prove:</p>

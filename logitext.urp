@@ -3,6 +3,10 @@ allow url http://localhost/logitext/tipsy.css
 allow url http://en.wikipedia.org/wiki/Sequent_calculus
 allow url https://github.com/ezyang/logitext
 allow url http://www.cis.upenn.edu/~bcpierce/sf/
+allow url http://www.haskell.org
+allow url http://www.impredicative.com/ur/
+allow url http://blog.ezyang.com/2012/05/what-happens-when-you-mix-three-research-programming-languages-together/
+allow url http://coq.inria.fr/
 rewrite all Logitext/*
 library haskell
 library meta
