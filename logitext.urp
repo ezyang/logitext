@@ -13,15 +13,10 @@ library meta
 script http://localhost/logitext/jquery.js
 script http://localhost/logitext/jquery.tipsy.js
 script http://localhost/logitext/ffi.js
-jsFunc Js.infinitedrag=infinitedrag
 jsFunc Js.tip=tip
 jsFunc Js.tipInner=tipInner
 jsFunc Js.tipHTML=tipHTML
-jsFunc Js.autofocus=autofocus
 jsFunc Js.clearTooltips=clearTooltips
-jsFunc Js.activate=activate
-benignEffectful Js.activate
-clientOnly Js.infinitedrag
 clientOnly Logitext.renderProof
 clientOnly Logitext.renderSequent
 ffi js
