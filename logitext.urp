@@ -1,5 +1,4 @@
 allow url http://localhost/logitext/style.css
-allow url http://localhost/logitext/tipsy.css
 allow url http://en.wikipedia.org/wiki/Sequent_calculus
 allow url https://github.com/ezyang/logitext
 allow url http://www.cis.upenn.edu/~bcpierce/sf/
@@ -10,16 +9,9 @@ allow url http://coq.inria.fr/
 rewrite all Logitext/*
 library haskell
 library meta
-script http://localhost/logitext/jquery.js
-script http://localhost/logitext/jquery.tipsy.js
-script http://localhost/logitext/ffi.js
-jsFunc Js.tip=tip
-jsFunc Js.tipInner=tipInner
-jsFunc Js.tipHTML=tipHTML
-jsFunc Js.clearTooltips=clearTooltips
+library js
 clientOnly Logitext.renderProof
 clientOnly Logitext.renderSequent
-ffi js
 
 $/option
 $/list
