@@ -25,6 +25,8 @@ open Json
 
 task initialize = Haskell.init
 
+fun activeCode m = <xml><active code={spawn (sleep 0; m); return <xml></xml>} /></xml>
+
 fun renderName (f : string) : xbody =
   let val i = strcspn f "0123456789"
   in if le i 0 (* XXX weird bug *)
@@ -268,7 +270,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                         onkeyup={fn k => if eq k.KeyCode 13
                             then doPrompt
                             else return ()} />
-                      <active code={spawn (sleep 0; giveFocus nid); return <xml></xml>}/>
+                      {activeCode (giveFocus nid)}
                       <button value="Go" onclick={fn _ => doPrompt} />
                       <button value="Contract" onclick={fn _ => makePending g} />
                       <div>
@@ -521,8 +523,7 @@ fun mkWorkspaceRaw showErrors mproof =
   let fun handler x =
     set proofStatus proofIsPending;
     nid <- fresh;
-    js <- Js.activate nid "clearTooltips";
-    set bamf js;
+    set bamf (activeCode Js.clearTooltips);
     bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
   in return {
     Onload = bind mproof (handleResultProof handler v proofStatus err),
