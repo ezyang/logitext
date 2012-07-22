@@ -263,17 +263,18 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     , InternalFailure = fn s => showError <xml>{[s]}</xml>
                     }
                 in nid <- fresh;
-                   return (Js.autofocus nid <xml><div>
+                   return <xml><div>
                       <ctextbox id={nid} size=6 source={r}
                         onkeyup={fn k => if eq k.KeyCode 13
                             then doPrompt
                             else return ()} />
+                      <active code={spawn (sleep 0; giveFocus nid); return <xml></xml>}/>
                       <button value="Go" onclick={fn _ => doPrompt} />
                       <button value="Contract" onclick={fn _ => makePending g} />
                       <div>
                         To apply this inference rule, you need to specify an individual to instantiate the quantified variable with.  This can be any lower-case expression, e.g. z or f(z). Contraction lets you use a hypothesis multiple times.
                       </div>
-                    </div></xml>)
+                    </div></xml>
                 end
     in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
