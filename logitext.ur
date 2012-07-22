@@ -265,11 +265,11 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                 in nid <- fresh;
                    return (Js.autofocus nid <xml><div>
                       <ctextbox id={nid} size=6 source={r}
-                        onkeyup={fn k => if eq k 13
+                        onkeyup={fn k => if eq k.KeyCode 13
                             then doPrompt
                             else return ()} />
-                      <button value="Go" onclick={doPrompt} />
-                      <button value="Contract" onclick={makePending g} />
+                      <button value="Go" onclick={fn _ => doPrompt} />
+                      <button value="Contract" onclick={fn _ => makePending g} />
                       <div>
                         To apply this inference rule, you need to specify an individual to instantiate the quantified variable with.  This can be any lower-case expression, e.g. z or f(z). Contraction lets you use a hypothesis multiple times.
                       </div>
@@ -278,7 +278,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
     in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
               nid <- fresh;
-              let val bod = <xml><li id={nid}><span class={junct} onclick={match x {
+              let val bod = <xml><li id={nid}><span class={junct} onclick={fn _ => match x {
                     Pred   = fn _ => makePending (make [#LExact] i),
                     Conj   = fn _ => makePending (make [#LConj] (i, 0)),
                     Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
@@ -321,7 +321,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
             ) s.Hyps;
     right <- List.mapXiM (fn i (Logic.Rec x) =>
               nid <- fresh;
-              let val bod = <xml><li id={nid}><span class={junct} onclick={match x {
+              let val bod = <xml><li id={nid}><span class={junct} onclick={fn _ => match x {
                     Pred   = fn _ => makePending (make [#RExact] i),
                     Conj   = fn _ => makePending (make [#RConj] (i, 0, 1)),
                     Disj   = fn _ => makePending (make [#RDisj] (i, 0)),
@@ -363,7 +363,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
               end
         ) s.Cons;
     nid <- fresh;
-    return ( (* Js.tipInner nid *) <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>)
+    return ( (* Js.tipInner nid *) <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={fn _ => h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>)
   end
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
@@ -498,7 +498,7 @@ val wQuantifier : xbody =
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml></xml>
-        fun showError (e : xbody) = nid <- fresh; set err (Js.tipInner nid <xml><div class={error}>{e} <button onclick={clearError} value="Dismiss" /></div></xml>)
+        fun showError (e : xbody) = nid <- fresh; set err (Js.tipInner nid <xml><div class={error}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml>)
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);
