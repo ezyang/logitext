@@ -480,7 +480,7 @@ val wQuantifier : xbody =
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml/>
-        fun showError (e : xbody) = nid <- fresh; set err (activate <xml><div class={error}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
+        fun showError (e : xbody) = nid <- fresh; set err (activate <xml><div class={error} id={nid}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);
