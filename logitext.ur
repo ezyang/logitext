@@ -43,7 +43,7 @@ fun renderUniverse ((Universe.Rec (f,xs)) : universe) : xbody =
   <xml>{renderName f}{
     case xs of
     | Cons _ => <xml>(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>
-    | Nil => <xml></xml>
+    | Nil => <xml/>
     }</xml>
 fun zapParseUniverse x : transaction string = return (Haskell.parseUniverse x)
 
@@ -379,7 +379,7 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
        let fun render f t : transaction xbody =
                 sib <- renderProof showError (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
-           fun empty (_ : int) : transaction xbody = return <xml></xml>
+           fun empty (_ : int) : transaction xbody = return <xml/>
            (* explicit signatures here to avoid "too-deep unification variable" problems *)
            fun single f (n : int, a : proof) : transaction xbody = render (fn x => f (n, x)) a
            fun singleQ f (n : int, u : universe, a : proof) : transaction xbody =
@@ -500,7 +500,7 @@ val wQuantifier : xbody =
     are the two quantifiers in first order logic.">quantifier</span></xml>
 
 fun handleResultProof handler v proofStatus err (z : string) =
-    let val clearError = set err <xml></xml>
+    let val clearError = set err <xml/>
         fun showError (e : xbody) = nid <- fresh; set err (Js.tipInner nid <xml><div class={error}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml>)
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
@@ -516,10 +516,10 @@ fun handleResultProof handler v proofStatus err (z : string) =
     end
 
 fun mkWorkspaceRaw showErrors mproof =
-  v <- source <xml></xml>;
-  err <- source <xml></xml>;
+  v <- source <xml/>;
+  err <- source <xml/>;
   proofStatus <- source proofIsIncomplete;
-  bamf <- source <xml></xml>;
+  bamf <- source <xml/>;
   let fun handler x =
     set proofStatus proofIsPending;
     nid <- fresh;
@@ -536,7 +536,7 @@ fun mkWorkspaceRaw showErrors mproof =
               </div>
             </div>
           </div>
-          {if showErrors then <xml><dyn signal={signal err}/></xml> else <xml></xml>}
+          {if showErrors then <xml><dyn signal={signal err}/></xml> else <xml/>}
     </xml>
     }
   end
