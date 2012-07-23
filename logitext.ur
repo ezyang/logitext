@@ -26,6 +26,7 @@ open Json
 task initialize = Haskell.init
 
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
+fun activate x m = <xml>{x}{activeCode m}</xml>
 
 fun renderName (f : string) : xbody =
   let val i = strcspn f "0123456789"
@@ -292,18 +293,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Bot    = fn _ => makePending (make [#LBot] i),
                     Forall = fn _ => return (),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
-                    }} (* title={match x {
-                    Pred   = fn _ => "assert axiom",
-                    Conj   = fn _ => "apply conjunction left (∧l)",
-                    Disj   = fn _ => "apply disjunction left (∨l)",
-                    Imp    = fn _ => "apply implication left (→l)",
-                    Iff    = fn _ => "apply iff left (↔l)",
-                    Not    = fn _ => "apply negation left (¬l)",
-                    Top    = fn _ => "erase irrelevant hypothesis",
-                    Bot    = fn _ => "assert contradiction",
-                    Forall = fn _ => "apply forall left (∀l)",
-                    Exists = fn _ => "apply exists left (∃l)",
-                    }} *)>
+                    }}>
                 {renderLogic True 0 (Logic.Rec x)}</span></li></xml>
               in
               match x {
@@ -317,7 +307,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                 Bot    = fn _ => return bod,
                 Forall = fn _ =>
                     r <- makePendingU (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0));
-                    Js.tipHTML nid bod r,
+                    return (activate bod (Js.tipHTML nid r)),
                 Exists = fn _ => return bod
               }
               end
@@ -335,18 +325,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Bot    = fn _ => makePending (make [#RBot] (i, 0)),
                     Forall = fn _ => makePending (make [#RForall] (i, 0)),
                     Exists = fn _ => return ()
-                    }} (* title={match x {
-                    Pred   = fn _ => "assert axiom",
-                    Conj   = fn _ => "apply conjunction right (∧r)",
-                    Disj   = fn _ => "apply disjunction right (∨r)",
-                    Imp    = fn _ => "apply implication right (→r)",
-                    Iff    = fn _ => "apply iff right (↔r)",
-                    Not    = fn _ => "apply negation right (¬r)",
-                    Top    = fn _ => "assert trivially true",
-                    Bot    = fn _ => "erase irrelevant conclusion",
-                    Forall = fn _ => "apply forall right (∀r)",
-                    Exists = fn _ => "apply exists right (∃r)",
-                    }} *)>
+                    }}>
                 {renderLogic True 0 (Logic.Rec x)}</span></li></xml>
               in
               match x {
@@ -361,12 +340,12 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                 Forall = fn _ => return bod,
                 Exists = fn _ =>
                     r <- makePendingU (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0));
-                    Js.tipHTML nid bod r
+                    return (activate bod (Js.tipHTML nid r))
               }
               end
         ) s.Cons;
     nid <- fresh;
-    return ( (* Js.tipInner nid *) <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={fn _ => h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>)
+    return <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={fn _ => h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>
   end
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
@@ -421,7 +400,7 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
           <tr>
             <td class={inference}>{sequent}</td>
             <td class={tagBox}>
-                <div class={tag}>{Js.tip nid <xml><span title={tacticDescription t} id={nid}>{[tacticRenderName t]}</span></xml>}</div>
+                <div class={tag}>{activate <xml><span title={tacticDescription t} id={nid}>{[tacticRenderName t]}</span></xml> (Js.tip nid)}</div>
             </td>
           </tr>
         </table></xml>
@@ -501,7 +480,7 @@ val wQuantifier : xbody =
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml/>
-        fun showError (e : xbody) = nid <- fresh; set err (Js.tipInner nid <xml><div class={error}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml>)
+        fun showError (e : xbody) = nid <- fresh; set err (activate <xml><div class={error}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);

@@ -2,6 +2,10 @@ jsFunc Js.tip=tip
 jsFunc Js.tipInner=tipInner
 jsFunc Js.tipHTML=tipHTML
 jsFunc Js.clearTooltips=clearTooltips
+benignEffectful Js.tip
+benignEffectful Js.tipInner
+benignEffectful Js.tipHTML
+benignEffectful Js.clearTooltips
 script http://localhost/logitext/jquery.js
 script http://localhost/logitext/jquery.tipsy.js
 script http://localhost/logitext/ffi.js

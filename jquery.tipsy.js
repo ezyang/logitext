@@ -26,7 +26,9 @@ var globalHoverState = 'out';
             if (title && this.enabled) {
                 var $tip = this.tip();
                 
-                $tip.remove().css({top: 0, left: 0, opacity: 0, display: 'block'}).prependTo(document.body);
+                // need top/left somewhat reasonable to prevent scroll
+                // jump on setInnerHTML
+                $tip.remove().css({top: this.$element.offset().top, left: this.$element.offset().left, opacity: 0, display: 'block'}).prependTo(document.body);
                 if (this.options.html) {
                     setInnerHTML($tip.find('.tipsy-inner')[0], title);
                 } else {
