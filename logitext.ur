@@ -25,7 +25,7 @@ open Json
 
 task initialize = Haskell.init
 
-fun activeCode m = <xml><active code={spawn (sleep 0; m); return <xml></xml>} /></xml>
+fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 
 fun renderName (f : string) : xbody =
   let val i = strcspn f "0123456789"
