@@ -3,4 +3,5 @@ ffi haskell
 link haskell.c
 link ClassicalFOLFFI.hs
 effectful Haskell.init
+benignEffectful Haskell.start
 linker ghc -no-hs-main -threaded

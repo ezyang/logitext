@@ -499,14 +499,13 @@ fun mkWorkspaceRaw showErrors mproof =
   err <- source <xml/>;
   proofStatus <- source proofIsIncomplete;
   bamf <- source <xml/>;
+  pf <- mproof;
   let fun handler x =
     set proofStatus proofIsPending;
     nid <- fresh;
     set bamf (activeCode Js.clearTooltips);
     bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
-  in return {
-    Onload = bind mproof (handleResultProof handler v proofStatus err),
-    Widget = <xml>
+  in return <xml>
           <div class={working}>
             <dyn signal={signal bamf} />
             <div dynClass={signal proofStatus}>
@@ -516,11 +515,11 @@ fun mkWorkspaceRaw showErrors mproof =
             </div>
           </div>
           {if showErrors then <xml><dyn signal={signal err}/></xml> else <xml/>}
+          {activeCode (handleResultProof handler v proofStatus err pf)}
     </xml>
-    }
   end
 
-fun mkWorkspace goal = mkWorkspaceRaw True (rpc (zapStart goal))
+fun mkWorkspace goal = mkWorkspaceRaw True (zapStart goal)
 fun mkExample proof = mkWorkspaceRaw True (return proof)
 
 fun tutorial () =
@@ -574,22 +573,7 @@ fun tutorial () =
     <title>Interactive Tutorial of the Sequent Calculus</title>
     {head}
   </head>
-  <body onload={
-    exAxiom.Onload; exAxiomDone.Onload; exLeft.Onload; exRight.Onload;
-    exAOrNotA.Onload; exAOrNotADone.Onload; exLDisjFull.Onload;
-    exDeduction.Onload; exRImpClassical.Onload;
-
-    exLConj.Onload; exRConj.Onload; exLImp.Onload; exRImp.Onload;
-    exLDisj.Onload; exRDisj.Onload; exLNot.Onload; exRNot.Onload; exLForall.Onload; exRForall.Onload;
-    exLExists.Onload; exRExists.Onload;
-
-    infAxiom.Onload; infLConj.Onload; infRConj.Onload; infLImp.Onload; infRImp.Onload;
-    infLDisj.Onload; infRDisj.Onload; infLNot.Onload; infRNot.Onload; infLForall.Onload; infRForall.Onload;
-    infLExists.Onload; infRExists.Onload;
-
-    exForallIdentity.Onload; exAndIdentity.Onload; exOrIdentity.Onload;
-    exDeMorgan.Onload; exForallDist.Onload; exForallContract.Onload; exDrinkersParadox.Onload
-  }>
+  <body>
     <div class={page}>
 
       <p><i>This interactive tutorial will teach you how to use the
@@ -669,14 +653,14 @@ fun tutorial () =
       {wTurnstile}.  We're done when all sequents have bars
       over them.</p>
 
-      {exAxiom.Widget}
+      {exAxiom}
 
       <p><b>Hypotheses on the left.</b> Read the following {wSequent} as "Γ and A imply A."
       If you click on A, you will successfully complete the proof, but if you click
       on Γ, you will fail (because it is not a conclusion you are proving.) Γ (a capital Greek gamma)
       conventionally indicates hypotheses which are not relevant.</p>
 
-      {exLeft.Widget}
+      {exLeft}
 
       <p><b>Conclusions on the right.</b>  Read the following sequent as
       "A implies A or Δ". Δ (a capital Greek delta) conventionally
@@ -686,7 +670,7 @@ fun tutorial () =
       identify axiomatically true statements: if an {wAtomicClause} is
       on the left and on the right, then you're done.)</p>
 
-      {exRight.Widget}
+      {exRight}
 
       <p><b>Backwards deduction.</b>  Up until now, clicking on a {wClause} has either
       told us "this {wSequent} is axiomatically true" (completing the
@@ -699,7 +683,7 @@ fun tutorial () =
       sequent calculus, we use {wBackwardsDeduction} to get rid of logical
       operators until we have {wAtomicClause}s.</p>
 
-      {exDeduction.Widget}
+      {exDeduction}
 
       <p><b>Inference rules.</b>  Now, it is great that the computer has
       told you what new {wGoal}s you need to prove, but what if you
@@ -711,7 +695,7 @@ fun tutorial () =
       You applied the rule for left-{wDisjunction} in the previous example:
       here is the rule written out in general.</p>
 
-      <div class={proofIsDone}>{exLDisjFull.Widget}</div>
+      <div class={proofIsDone}>{exLDisjFull}</div>
 
       <p>The Γ and Δ are placeholders for other hypotheses and conclusions:
       in the previous example Γ was empty, and Δ was "A, B" (two clauses).
@@ -730,8 +714,8 @@ fun tutorial () =
 
       <table class={centerTable}>
         <tr>
-          <td>{exLConj.Widget}</td>
-          <td>{exRDisj.Widget}</td>
+          <td>{exLConj}</td>
+          <td>{exRDisj}</td>
         </tr>
       </table>
 
@@ -739,14 +723,14 @@ fun tutorial () =
       of as implication, so to prove A → B, I can assume A as a hypothesis
       and prove B instead ("moving" the clause to the left side of the turnstile.)</p>
 
-      {exRImp.Widget}
+      {exRImp}
 
       <p>It's worth noting that, because this is classical logic, you can use
       any hypothesis generated this way for any other conclusion (a sort
       of "bait and switch").  It's worth taking some time to convince yourself why this
       is allowed, since it shows up in other {wInferenceRule}s too.  Here is a simple example of this:</p>
 
-      {exRImpClassical.Widget}
+      {exRImpClassical}
 
       <p><b>Branching rules.</b>  What about {wConjunction}, {wDisjunction} and {wImplication}
       on the other side of the {wTurnstile}?  All of these generate <i>two</i> new
@@ -754,11 +738,11 @@ fun tutorial () =
 
       <table class={centerTable}>
         <tr>
-          <td>{exRConj.Widget}</td>
-          <td>{exLDisj.Widget}</td>
+          <td>{exRConj}</td>
+          <td>{exLDisj}</td>
         </tr>
         <tr>
-          <td colspan=2>{exLImp.Widget}</td>
+          <td colspan=2>{exLImp}</td>
         </tr>
       </table>
 
@@ -767,8 +751,8 @@ fun tutorial () =
 
       <table class={centerTable}>
         <tr>
-          <td>{exLNot.Widget}</td>
-          <td>{exRNot.Widget}</td>
+          <td>{exLNot}</td>
+          <td>{exRNot}</td>
         </tr>
       </table>
 
@@ -778,8 +762,8 @@ fun tutorial () =
       we can just use the inference rules for implication and the inference rules
       for contradiction.</p>
 
-      {exLNotImp.Widget}
-      {exRNotImp.Widget}
+      {exLNotImp}
+      {exRNotImp}
 *)
 
       <p><b>Quantifier rules.</b> The rules for the {wQuantifier}s are
@@ -787,12 +771,12 @@ fun tutorial () =
 
       <table class={centerTable}>
         <tr>
-          <td>{exLForall.Widget}</td>
-          <td>{exRForall.Widget}</td>
+          <td>{exLForall}</td>
+          <td>{exRForall}</td>
         </tr>
         <tr>
-          <td>{exLExists.Widget}</td>
-          <td>{exRExists.Widget}</td>
+          <td>{exLExists}</td>
+          <td>{exRExists}</td>
         </tr>
       </table>
 
@@ -820,7 +804,7 @@ fun tutorial () =
       <p>In practice, this means is that the order you apply tactics is
       important:</p>
 
-      {exForallIdentity.Widget}
+      {exForallIdentity}
 
       <p>If you start off with the left-forall, when you apply the
       right-forall, the system will always give you something that
@@ -839,13 +823,13 @@ fun tutorial () =
       <p><b>Summary.</b> Here are all the inference rules for first order logic:</p>
 
       <table class={classes rules green}>
-      <tr><td colspan=2>{infAxiom.Widget}</td></tr>
-      <tr><td>{infLNot.Widget}</td><td>{infRNot.Widget}</td></tr>
-      <tr><td>{infLConj.Widget}</td><td>{infRConj.Widget}</td></tr>
-      <tr><td>{infLDisj.Widget}</td><td>{infRDisj.Widget}</td></tr>
-      <tr><td>{infLImp.Widget}</td><td>{infRImp.Widget}</td></tr>
-      <tr><td>{infLForall.Widget}</td><td>{infRForall.Widget}</td></tr>
-      <tr><td>{infLExists.Widget}</td><td>{infRExists.Widget}</td></tr>
+      <tr><td colspan=2>{infAxiom}</td></tr>
+      <tr><td>{infLNot}</td><td>{infRNot}</td></tr>
+      <tr><td>{infLConj}</td><td>{infRConj}</td></tr>
+      <tr><td>{infLDisj}</td><td>{infRDisj}</td></tr>
+      <tr><td>{infLImp}</td><td>{infRImp}</td></tr>
+      <tr><td>{infLForall}</td><td>{infRForall}</td></tr>
+      <tr><td>{infLExists}</td><td>{infRExists}</td></tr>
       </table>
 
       <p>With these {wInferenceRule}s, you have the capability to
@@ -853,15 +837,15 @@ fun tutorial () =
 
       <h2>Exercises</h2>
 
-      {exAndIdentity.Widget}
-      {exOrIdentity.Widget}
-      {exDeMorgan.Widget}
-      {exForallDist.Widget}
+      {exAndIdentity}
+      {exOrIdentity}
+      {exDeMorgan}
+      {exForallDist}
 
       <p>Hint: these two require <span title="...which duplicates a hypothesis or conclusion and lets you use it twice, with different instantiations of the variables.">contraction</span>.</p>
 
-      {exForallContract.Widget}
-      {exDrinkersParadox.Widget}
+      {exForallContract}
+      {exDrinkersParadox}
 
       <h2>Conclusion</h2>
 
@@ -921,7 +905,7 @@ and proving goal =
           <title>Proving {[goal]}</title>
           {head}
         </head>
-        <body onload={wksp.Onload}>
+        <body>
         <div class={page}>
           <p>The <a href="http://en.wikipedia.org/wiki/Sequent_calculus">sequent calculus</a>
           is a form of backwards reasoning, with left and right inference rules which operate
@@ -932,7 +916,7 @@ and proving goal =
           (You can also choose to duplicate the rules by clicking "Contraction").
           If that made no sense to you, check out <a link={tutorial ()}>the tutorial</a>.
           Or, you can <a link={main ()}>return to main page...</a></p>
-          {wksp.Widget}
+          {wksp}
         </div>
         </body>
       </xml>
