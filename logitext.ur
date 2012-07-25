@@ -25,6 +25,22 @@ open Json
 
 task initialize = Haskell.init
 
+(* Metaprogrammed variant destruction! (Probably also works for records too) *)
+signature CLASS = sig
+    type t
+    class destruct
+    val mk : a ::: Type -> (a -> t) -> destruct a
+    val dmatch : ts ::: {Type} -> $(map destruct ts) -> variant ts -> t
+end
+functor Destruct(M : sig type t end) : CLASS where type t = M.t = struct
+    type t = M.t
+    class destruct a = a -> t
+    fun mk [a] (f : a -> t) : destruct a = f
+    fun dmatch [ts ::: {Type}] (dstrs : $(map destruct ts)) (v : variant ts) : t
+      = match v dstrs
+end
+structure DBool = Destruct(struct type t = bool end)
+
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 fun activate x m = <xml>{x}{activeCode m}</xml>
 
@@ -215,37 +231,12 @@ fun proofComplete (Proof.Rec p) : bool =
     match p {Goal = fn _ => False,
              Pending = fn _ => False,
              Proof = fn (_, t) =>
-                let fun empty _ = True
-                    fun single (_, a) = proofComplete a
-                    fun singleQ (_, _, a) = proofComplete a
-                    fun double (_, a, b) = andB (proofComplete a) (proofComplete b)
-                in match t {Cut       = fn (_, a, b) => andB (proofComplete a) (proofComplete b),
-                            LExact    = empty,
-                            LBot      = empty,
-                            RExact    = empty,
-                            RTop      = empty,
-                            LConj     = single,
-                            LNot      = single,
-                            LExists   = single,
-                            LContract = single,
-                            LWeaken   = single,
-                            LTop      = single,
-                            RDisj     = single,
-                            RImp      = single,
-                            LIff      = single,
-                            RNot      = single,
-                            RBot      = single,
-                            RForall   = single,
-                            RContract = single,
-                            RWeaken   = single,
-                            LForall   = singleQ,
-                            RExists   = singleQ,
-                            LDisj     = double,
-                            LImp      = double,
-                            RIff      = double,
-                            RConj     = double
-                            }
-                end
+                let val empty   = DBool.mk (fn _ : int => True)
+                    val single  = DBool.mk (fn (_ : int, a) => proofComplete a)
+                    val singleQ = DBool.mk (fn (_ : int, _ : Universe.r, a) => proofComplete a)
+                    val double  = DBool.mk (fn (_ : int, a, b) => andB (proofComplete a) (proofComplete b))
+                    val cut     = DBool.mk (fn (_ : Logic.r, a, b) => andB (proofComplete a) (proofComplete b))
+                in DBool.dmatch t end
              }
 
 fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : transaction xbody =
