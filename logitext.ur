@@ -26,20 +26,21 @@ open Json
 task initialize = Haskell.init
 
 (* Metaprogrammed variant destruction! (Probably also works for records too) *)
-signature CLASS = sig
+signature DESTRUCT = sig
     type t
     class destruct
     val mk : a ::: Type -> (a -> t) -> destruct a
-    val dmatch : ts ::: {Type} -> $(map destruct ts) -> variant ts -> t
+    val dmatch : ts ::: {Type} -> variant ts -> $(map destruct ts) -> t
 end
-functor Destruct(M : sig type t end) : CLASS where type t = M.t = struct
+functor Destruct(M : sig type t end) : DESTRUCT where type t = M.t = struct
     type t = M.t
     class destruct a = a -> t
     fun mk [a] (f : a -> t) : destruct a = f
-    fun dmatch [ts ::: {Type}] (dstrs : $(map destruct ts)) (v : variant ts) : t
+    fun dmatch [ts ::: {Type}] (v : variant ts) (dstrs : $(map destruct ts)) : t
       = match v dstrs
 end
 structure DBool = Destruct(struct type t = bool end)
+structure DTX = Destruct(struct type t = transaction xbody end)
 
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 fun activate x m = <xml>{x}{activeCode m}</xml>
