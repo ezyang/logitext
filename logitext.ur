@@ -406,7 +406,6 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
     }
 
 fun zapRefine (x : proof) : transaction string  = return (Haskell.refine (toJson x))
-fun zapStart x : transaction string = return (Haskell.start x)
 
 val head = <xml>
     <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
@@ -523,9 +522,6 @@ fun workspace goal =
   in <xml><active code={mkWorkspaceRaw True parsedGoal} /></xml>
   end
 fun example proof = <xml><active code={mkWorkspaceRaw True proof} /></xml>
-
-fun mkWorkspace goal = bind (zapStart goal) (mkWorkspaceRaw True)
-fun mkExample proof = mkWorkspaceRaw True proof
 
 fun tutorial () =
   return <xml>
@@ -869,7 +865,6 @@ fun tutorial () =
   </xml>
 
 and proving goal =
-  wksp <- mkWorkspace goal;
   return <xml>
         <head>
           <title>Proving {[goal]}</title>
@@ -886,7 +881,7 @@ and proving goal =
           (You can also choose to duplicate the rules by clicking "Contraction").
           If that made no sense to you, check out <a link={tutorial ()}>the tutorial</a>.
           Or, you can <a link={main ()}>return to main page...</a></p>
-          {wksp}
+          {workspace goal}
         </div>
         </body>
       </xml>
