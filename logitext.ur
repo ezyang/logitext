@@ -494,12 +494,11 @@ fun handleResultProof handler v proofStatus err (z : string) =
         }
     end
 
-fun mkWorkspaceRaw showErrors mproof =
+fun mkWorkspaceRaw showErrors pf =
   v <- source <xml/>;
   err <- source <xml/>;
   proofStatus <- source proofIsIncomplete; (* should actually be a datatype *)
   bamf <- source <xml/>;
-  pf <- mproof;
   let fun handler x =
     set proofStatus proofIsPending;
     nid <- fresh;
@@ -519,54 +518,16 @@ fun mkWorkspaceRaw showErrors mproof =
     </xml>
   end
 
-fun mkWorkspace goal = mkWorkspaceRaw True (zapStart goal)
-fun mkExample proof = mkWorkspaceRaw True (return proof)
+fun workspace goal =
+  let val parsedGoal = Haskell.start goal
+  in <xml><active code={mkWorkspaceRaw True parsedGoal} /></xml>
+  end
+fun example proof = <xml><active code={mkWorkspaceRaw True proof} /></xml>
+
+fun mkWorkspace goal = bind (zapStart goal) (mkWorkspaceRaw True)
+fun mkExample proof = mkWorkspaceRaw True proof
 
 fun tutorial () =
-  exAxiom <- mkWorkspace "A |- A";
-  exAxiomDone <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}";
-  exLeft <- mkWorkspace "Γ, A |- A";
-  exRight <- mkWorkspace "A |- A, Δ";
-  exDeduction <- mkWorkspace "A \/ B |- A, B";
-
-  exLConj <- mkWorkspace "Γ, A /\ B |- A, Δ";
-  exRDisj <- mkWorkspace "Γ, A |- A \/ B, Δ";
-
-  exRImp <- mkWorkspace "Γ |- A -> A, Δ";
-
-  exRConj <- mkWorkspace "Γ, A, B |- A /\ B, Δ";
-  exLDisj <- mkWorkspace "Γ, A \/ B |- A, B, Δ";
-  exLImp <- mkWorkspace "Γ, A, A -> B |- B, Δ";
-  exLNot <- mkWorkspace "Γ, A, ~A |- Δ";
-  exRNot <- mkWorkspace "Γ |- ~A, A, Δ";
-  exLForall <- mkWorkspace "Γ, forall x. P(x) |- P(a), Δ";
-  exRForall <- mkWorkspace "Γ, P(a) |- forall x. P(x), Δ";
-  exLExists <- mkWorkspace "Γ, exists x. P(x) |- P(a), Δ";
-  exRExists <- mkWorkspace "Γ, P(a) |- exists x. P(x), Δ";
-  exRImpClassical <- mkWorkspace "|- (A -> B) \/ A";
-  exLDisjFull <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}";
-  infAxiom <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":1}}}}";
-  infLConj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LConj\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}}}}}}}";
-  infRConj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RConj\":{\"1\":0,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
-  infLImp <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LImp\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
-  infRImp <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RImp\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
-  infLNot <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}}]},\"2\":{\"LNot\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
-  infRNot <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RNot\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
-  infLForall <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}}]},\"2\":{\"LForall\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"z\",\"2\":[]}]}}]}},\"2\":{\"1\":\"z\",\"2\":[]}}}}}}";
-  infRForall <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RForall\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
-  infLExists <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Exists\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}}]},\"2\":{\"LExists\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}]}}}}}}}";
-  infRExists <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Exists\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RExists\":{\"1\":0,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"z\",\"2\":[]}]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}},\"2\":{\"1\":\"z\",\"2\":[]}}}}}}";
-  infLDisj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}";
-  infRDisj <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RDisj\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}";
-  exAOrNotA <- mkWorkspace "|- A \/ ~ A";
-  exAOrNotADone <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}}}}],\"hyps\":[]},\"2\":{\"RDisj\":{\"1\":0,\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}}],\"hyps\":[]},\"2\":{\"RNot\":{\"1\":1,\"2\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}}}}}}}}}";
-  exForallIdentity <- mkWorkspace "(forall x. P(x)) |- (forall x. P(x))";
-  exAndIdentity <- mkWorkspace "A /\ B |- B /\ A";
-  exOrIdentity <- mkWorkspace "A \/ B |- B \/ A";
-  exDeMorgan <- mkWorkspace "~(A \/ B) -> ~A /\ ~B";
-  exDrinkersParadox <- mkWorkspace "|- exists x. P(x) -> forall y. P(y)";
-  exForallDist <- mkWorkspace "(forall x. P(x)) /\ (forall x. Q(x)) -> forall y. P(y) /\ Q(y)";
-  exForallContract <- mkWorkspace "forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))";
   return <xml>
   <head>
     <title>Interactive Tutorial of the Sequent Calculus</title>
@@ -652,14 +613,14 @@ fun tutorial () =
       {wTurnstile}.  We're done when all sequents have bars
       over them.</p>
 
-      {exAxiom}
+      {workspace "A |- A"}
 
       <p><b>Hypotheses on the left.</b> Read the following {wSequent} as "Γ and A imply A."
       If you click on A, you will successfully complete the proof, but if you click
       on Γ, you will fail (because it is not a conclusion you are proving.) Γ (a capital Greek gamma)
       conventionally indicates hypotheses which are not relevant.</p>
 
-      {exLeft}
+      {workspace "Γ, A |- A"}
 
       <p><b>Conclusions on the right.</b>  Read the following sequent as
       "A implies A or Δ". Δ (a capital Greek delta) conventionally
@@ -669,7 +630,7 @@ fun tutorial () =
       identify axiomatically true statements: if an {wAtomicClause} is
       on the left and on the right, then you're done.)</p>
 
-      {exRight}
+      {workspace "A |- A, Δ"}
 
       <p><b>Backwards deduction.</b>  Up until now, clicking on a {wClause} has either
       told us "this {wSequent} is axiomatically true" (completing the
@@ -682,7 +643,7 @@ fun tutorial () =
       sequent calculus, we use {wBackwardsDeduction} to get rid of logical
       operators until we have {wAtomicClause}s.</p>
 
-      {exDeduction}
+      {workspace "A \/ B |- A, B"}
 
       <p><b>Inference rules.</b>  Now, it is great that the computer has
       told you what new {wGoal}s you need to prove, but what if you
@@ -694,7 +655,7 @@ fun tutorial () =
       You applied the rule for left-{wDisjunction} in the previous example:
       here is the rule written out in general.</p>
 
-      <div class={proofIsDone}>{exLDisjFull}</div>
+      <div class={proofIsDone}>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}"}</div>
 
       <p>The Γ and Δ are placeholders for other hypotheses and conclusions:
       in the previous example Γ was empty, and Δ was "A, B" (two clauses).
@@ -713,8 +674,8 @@ fun tutorial () =
 
       <table class={centerTable}>
         <tr>
-          <td>{exLConj}</td>
-          <td>{exRDisj}</td>
+          <td>{workspace "Γ, A /\ B |- A, Δ"}</td>
+          <td>{workspace "Γ, A |- A \/ B, Δ"}</td>
         </tr>
       </table>
 
@@ -722,14 +683,14 @@ fun tutorial () =
       of as implication, so to prove A → B, I can assume A as a hypothesis
       and prove B instead ("moving" the clause to the left side of the turnstile.)</p>
 
-      {exRImp}
+      {workspace "Γ |- A -> A, Δ"}
 
       <p>It's worth noting that, because this is classical logic, you can use
       any hypothesis generated this way for any other conclusion (a sort
       of "bait and switch").  It's worth taking some time to convince yourself why this
       is allowed, since it shows up in other {wInferenceRule}s too.  Here is a simple example of this:</p>
 
-      {exRImpClassical}
+      {workspace "|- (A -> B) \/ A"}
 
       <p><b>Branching rules.</b>  What about {wConjunction}, {wDisjunction} and {wImplication}
       on the other side of the {wTurnstile}?  All of these generate <i>two</i> new
@@ -737,11 +698,11 @@ fun tutorial () =
 
       <table class={centerTable}>
         <tr>
-          <td>{exRConj}</td>
-          <td>{exLDisj}</td>
+          <td>{workspace "Γ, A, B |- A /\ B, Δ"}</td>
+          <td>{workspace "Γ, A \/ B |- A, B, Δ"}</td>
         </tr>
         <tr>
-          <td colspan=2>{exLImp}</td>
+          <td colspan=2>{workspace "Γ, A, A -> B |- B, Δ"}</td>
         </tr>
       </table>
 
@@ -750,32 +711,22 @@ fun tutorial () =
 
       <table class={centerTable}>
         <tr>
-          <td>{exLNot}</td>
-          <td>{exRNot}</td>
+          <td>{workspace "Γ, A, ~A |- Δ"}</td>
+          <td>{workspace "Γ |- ~A, A, Δ"}</td>
         </tr>
       </table>
-
-(* XXX FastCGI hates me, throws unurlification errors
-      <p>An easy way to see why this is true is to observe that ¬A is equivalent to A → ⊥,
-      where ⊥ denotes a contradiction (not A is the same as A implies contradiction.)  Then
-      we can just use the inference rules for implication and the inference rules
-      for contradiction.</p>
-
-      {exLNotImp}
-      {exRNotImp}
-*)
 
       <p><b>Quantifier rules.</b> The rules for the {wQuantifier}s are
       quite interesting.  Which of these four statements is true?</p>
 
       <table class={centerTable}>
         <tr>
-          <td>{exLForall}</td>
-          <td>{exRForall}</td>
+          <td>{workspace "Γ, forall x. P(x) |- P(a), Δ"}</td>
+          <td>{workspace "Γ, P(a) |- forall x. P(x), Δ"}</td>
         </tr>
         <tr>
-          <td>{exLExists}</td>
-          <td>{exRExists}</td>
+          <td>{workspace "Γ, exists x. P(x) |- P(a), Δ"}</td>
+          <td>{workspace "Γ, P(a) |- exists x. P(x), Δ"}</td>
         </tr>
       </table>
 
@@ -803,7 +754,7 @@ fun tutorial () =
       <p>In practice, this means is that the order you apply tactics is
       important:</p>
 
-      {exForallIdentity}
+      {workspace "(forall x. P(x)) |- (forall x. P(x))"}
 
       <p>If you start off with the left-forall, when you apply the
       right-forall, the system will always give you something that
@@ -822,13 +773,33 @@ fun tutorial () =
       <p><b>Summary.</b> Here are all the inference rules for first order logic:</p>
 
       <table class={classes rules green}>
-      <tr><td colspan=2>{infAxiom}</td></tr>
-      <tr><td>{infLNot}</td><td>{infRNot}</td></tr>
-      <tr><td>{infLConj}</td><td>{infRConj}</td></tr>
-      <tr><td>{infLDisj}</td><td>{infRDisj}</td></tr>
-      <tr><td>{infLImp}</td><td>{infRImp}</td></tr>
-      <tr><td>{infLForall}</td><td>{infRForall}</td></tr>
-      <tr><td>{infLExists}</td><td>{infRExists}</td></tr>
+        <tr>
+          <td colspan=2>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":1}}}}"}</td>
+        </tr>
+        <tr>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}}]},\"2\":{\"LNot\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}"}</td>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Not\":{\"Pred\":{\"1\":\"A\",\"2\":[]}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RNot\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}"}</td>
+        </tr>
+        <tr>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LConj\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}}}}}}}"}</td>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Conj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RConj\":{\"1\":0,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}"}</td>
+        </tr>
+        <tr>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LDisj\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"A\",\"2\":[]}}]}}}}}}}"}</td>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Disj\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RDisj\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}"}</td>
+        </tr>
+        <tr>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}}]},\"2\":{\"LImp\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"B\",\"2\":[]}}]}},\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}"}</td>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Imp\":{\"1\":{\"Pred\":{\"1\":\"A\",\"2\":[]}},\"2\":{\"Pred\":{\"1\":\"B\",\"2\":[]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RImp\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"B\",\"2\":[]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}},{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}"}</td>
+        </tr>
+        <tr>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Forall\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}}]},\"2\":{\"LForall\":{\"1\":1,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"z\",\"2\":[]}]}}]}},\"2\":{\"1\":\"z\",\"2\":[]}}}}}}"}</td>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Forall\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RForall\":{\"1\":0,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}}}}}}}"}</td>
+        </tr>
+        <tr>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Exists\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}}]},\"2\":{\"LExists\":{\"1\":1,\"2\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}},{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}]}}}}}}}"}</td>
+          <td>{example "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Exists\":{\"1\":\"x\",\"2\":{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"x\",\"2\":[]}]}}}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]},\"2\":{\"RExists\":{\"1\":0,\"3\":{\"Goal\":{\"cons\":[{\"Pred\":{\"1\":\"P\",\"2\":[{\"1\":\"z\",\"2\":[]}]}},{\"Pred\":{\"1\":\"Δ\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"Γ\",\"2\":[]}}]}},\"2\":{\"1\":\"z\",\"2\":[]}}}}}}"}</td>
+        </tr>
       </table>
 
       <p>With these {wInferenceRule}s, you have the capability to
@@ -836,15 +807,15 @@ fun tutorial () =
 
       <h2>Exercises</h2>
 
-      {exAndIdentity}
-      {exOrIdentity}
-      {exDeMorgan}
-      {exForallDist}
+      {workspace "A /\ B |- B /\ A"}
+      {workspace "A \/ B |- B \/ A"}
+      {workspace "~(A \/ B) -> ~A /\ ~B"}
+      {workspace "(forall x. P(x)) /\ (forall x. Q(x)) -> forall y. P(y) /\ Q(y)"}
 
       <p>Hint: these two require <span title="...which duplicates a hypothesis or conclusion and lets you use it twice, with different instantiations of the variables.">contraction</span>.</p>
 
-      {exForallContract}
-      {exDrinkersParadox}
+      {workspace "|- exists x. P(x) -> forall y. P(y)"}
+      {workspace "forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))"}
 
       <h2>Conclusion</h2>
 
