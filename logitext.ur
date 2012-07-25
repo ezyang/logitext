@@ -30,9 +30,7 @@ fun activate x m = <xml>{x}{activeCode m}</xml>
 
 fun renderName (f : string) : xbody =
   let val i = strcspn f "0123456789"
-  in if le i 0 (* XXX weird bug *)
-       then <xml>{[f]}</xml>
-       else <xml>{[substring f 0 i]}<sub>{[substring f i (strlen f - i)]}</sub></xml>
+  in <xml>{[substring f 0 i]}<sub>{[substring f i (strlen f - i)]}</sub></xml>
   end
 
 structure Universe = Json.Recursive(struct
@@ -349,7 +347,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
   end
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
-       (* XXX It would be neat if mouse over caused this to change, but a little difficult *)
+       (* XXX It would be neat if mouse over caused this to change to show what the result would be, but a little difficult due to the necessity of a redraw *)
        sequent <- renderSequent showError h s;
        return <xml><table><tr><td>{sequent}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
    Pending = fn (s, t) => return <xml>...</xml>,
@@ -480,13 +478,15 @@ val wQuantifier : xbody =
 
 fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml/>
-        fun showError (e : xbody) = nid <- fresh; set err (activate <xml><div class={error} id={nid}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
+        fun showError (e : xbody) =
+            nid <- fresh;
+            set err (activate <xml><div class={error} id={nid}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);
                             set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
         , EndUserFailure = fn e => set proofStatus proofIsIncomplete; match e
-           (* XXX assuming a bit about what update failures are... *)
+           (* XXX makes assumption about what update failures are... *)
             { UpdateFailure = fn () => showError <xml>No matching {wAtomicClause} on other side of {wTurnstile}.</xml>
             , ParseFailure = fn () => showError <xml>Parse error.</xml>
             }
@@ -497,7 +497,7 @@ fun handleResultProof handler v proofStatus err (z : string) =
 fun mkWorkspaceRaw showErrors mproof =
   v <- source <xml/>;
   err <- source <xml/>;
-  proofStatus <- source proofIsIncomplete;
+  proofStatus <- source proofIsIncomplete; (* should actually be a datatype *)
   bamf <- source <xml/>;
   pf <- mproof;
   let fun handler x =
@@ -523,7 +523,6 @@ fun mkWorkspace goal = mkWorkspaceRaw True (zapStart goal)
 fun mkExample proof = mkWorkspaceRaw True (return proof)
 
 fun tutorial () =
-  (* XXX ewwwwwww *)
   exAxiom <- mkWorkspace "A |- A";
   exAxiomDone <- mkExample "{\"Success\":{\"Proof\":{\"1\":{\"cons\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}],\"hyps\":[{\"Pred\":{\"1\":\"A\",\"2\":[]}}]},\"2\":{\"LExact\":0}}}}";
   exLeft <- mkWorkspace "Γ, A |- A";
@@ -920,8 +919,7 @@ and proving goal =
         </div>
         </body>
       </xml>
-      (* XXX initially, the proof box should glow, so the user nows that this is special *)
-      (* XXX we can't factor out the proof box, because there is no way to compose onload attributes *)
+      (* XXX initially, the proof box should glow, so the user knows that it is special *)
 
 and provingTrampoline r =
   redirect (url (proving r.Goal))
