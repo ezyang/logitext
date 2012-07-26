@@ -22,7 +22,9 @@ style green
 style primaryConnective
 
 open Json
-open Variant
+
+val declareCase = @@Variant.declareCase
+val typeCase = @@Variant.typeCase
 
 task initialize = Haskell.init
 
@@ -244,7 +246,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                 in nid <- fresh;
                    return <xml><div>
                       <ctextbox id={nid} size=6 source={r}
-                        onkeyup={fn k => if Basis.eq k.KeyCode 13
+                        onkeyup={fn k => if k.KeyCode = 13
                             then doPrompt
                             else return ()} />
                       {activeCode (giveFocus nid)}
