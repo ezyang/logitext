@@ -98,20 +98,35 @@ val json_sequent : json sequent = json_record {Hyps = "hyps", Cons = "cons"}
 (* our protocol kind of precludes incremental updates or smooth
 redrawing. It would be nice if Ur/Web did this for us. *)
 
-con tactic' a = [Cut = logic * a * a,
-                 LExact = int,
-                 LConj = int * a,
-                 LDisj = int * a * a,
-                 LImp = int * a * a,
-                 LIff = int * a,
-                 LBot = int,
-                 LTop = int * a,
-                 LNot = int * a,
-                 LForall = int * universe * a,
-                 LExists = int * a,
-                 LContract = int * a,
-                 LWeaken = int * a,
-                 RExact = int,
+con fol_tactic' a = [Cut = logic * a * a,
+                     LExact = int,
+                     LConj = int * a,
+                     LDisj = int * a * a,
+                     LImp = int * a * a,
+                     LIff = int * a,
+                     LBot = int,
+                     LTop = int * a,
+                     LNot = int * a,
+                     LForall = int * universe * a,
+                     LExists = int * a,
+                     LContract = int * a,
+                     LWeaken = int * a]
+
+con constr_tactic' a = fol_tactic' a ++
+                     [RExact = unit,
+                      RConj = a * a,
+                      RDisj = a,
+                      RImp = a,
+                      RIff = a * a,
+                      RTop = unit,
+                      RBot = a,
+                      RNot = a,
+                      RForall = a,
+                      RExists = universe * a,
+                     ]
+
+con tactic' a = fol_tactic' a ++
+                [RExact = int,
                  RConj = int * a * a,
                  RDisj = int * a,
                  RImp = int * a,
