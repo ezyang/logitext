@@ -46,64 +46,50 @@ This uses a combination of type classes and metaprogramming to make
 it easy to write case-matches on very large variants with many
 similar elements.  Here's how you use it:
 
-    1. Pick the [variant ts] to destruct, and the return type
-       of the destruction [t].  Instantiate the Destruct functor
-       with these types:
+    1. Open up this module:
 
-            structure DBool = Destruct(struct
-                type t = bool
-                con ts = tactic' proof
-            end)
+            open Destruct
 
     2. For every type in the variant, write a local typeclass function
-       which reduces it to t, and register as such using the 'mk'
+       which reduces it to t, and register as such using the 'destruct'
        function in the module you created.
 
-            let val empty = DBool.mk (fn _ (_ : int) => True)
+            let val empty = destruct (fn _ (_ : int) => True)
 
        These functions also take an initial argument, which has
        type [a -> variant ts]; e.g. you can use this to create
        a new copy of the variant with different values!
-       Make sure you specify type signatures on the argument t
-       so that we can identify who this typeclass is for.
+       Make sure you specify type signatures on the argument [t]
+       so that we can identify who this typeclass is for.  (If you
+       use type classes to construct the return value, you may
+       also need to declare the return type explicitly.)
 
-    3. Do the destruct using 'match':
+    3. Do the destruct using 'dmatch':
 
-            DBool.dmatch t
+            dmatch t
 
        If you need to override specific constructors, use this idiom:
 
-            @DBool.dmatch t (_ ++ {
-                YourConstr = DBool.mk (fn _ _ => ...)
+            @dmatch t (_ ++ {
+                YourConstr = destruct (fn _ _ => ...)
             }) _
 
 How does it work?  Very simple: it uses local typeclasses + Ur/Web's
-support for automatically instantiating records of typeclasses.  The
-module nonsense is required because Ur/Web doesn't support
-multi parameter type classes.
+support for automatically instantiating records of typeclasses.
 *)
 signature DESTRUCT = sig
-    type t
-    con ts :: {Type}
-    class destruct
-    val mk : a ::: Type -> ((a -> variant ts) -> a -> t) -> destruct a
-    val dmatch : variant ts -> $(map destruct ts) -> folder ts -> t
+    class destruct :: {Type} -> Type -> Type -> Type
+    val destruct : ts ::: {Type} -> t ::: Type -> a ::: Type -> ((a -> variant ts) -> a -> t) -> destruct ts t a
+    val dmatch : ts ::: {Type} -> t ::: Type -> variant ts -> $(map (destruct ts t) ts) -> folder ts -> t
 end
-functor Destruct(M : sig
-    type t
-    con ts :: {Type}
-end) : DESTRUCT
-    where type t = M.t
-    where con ts = M.ts
-= struct
-    type t = M.t
-    con ts = M.ts
-    class destruct a = (a -> variant ts) -> a -> t
-    fun mk [a] (f : (a -> variant ts) -> a -> t) : destruct a = f
-    fun dmatch (v : variant ts) (dstrs : $(map destruct ts)) (fl : folder ts) : t
+structure Destruct : DESTRUCT = struct
+    class destruct = fn ts t a => (a -> variant ts) -> a -> t
+    fun destruct [ts] [t] [a] (f : (a -> variant ts) -> a -> t) : destruct ts t a = f
+    fun dmatch [ts] [t] (v : variant ts) (dstrs : $(map (destruct ts t) ts)) (fl : folder ts) : t
     (* Ur/Web not clever enough to calculate these folders, it seems *)
       = match v (@ap [fn a => a -> variant ts] [fn a => a -> t] dstrs (@mkLabels fl) fl)
 end
+open Destruct
 
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 fun activate x m = <xml>{x}{activeCode m}</xml>
@@ -293,26 +279,17 @@ type proof = Proof.r
 
 fun andB a b = if a then b else False
 
-structure DBool = Destruct(struct
-    type t = bool
-    con ts = tactic' proof
-end)
 fun proofComplete (Proof.Rec p) : bool =
     match p {Goal = fn _ => False,
              Pending = fn _ => False,
              Proof = fn (_, t) =>
-                let val empty   = DBool.mk (fn _ (_ : int) => True)
-                    val single  = DBool.mk (fn _ (_ : int, a) => proofComplete a)
-                    val singleQ = DBool.mk (fn _ (_ : int, _ : Universe.r, a) => proofComplete a)
-                    val double  = DBool.mk (fn _ (_ : int, a, b) => andB (proofComplete a) (proofComplete b))
-                    val cut     = DBool.mk (fn _ (_ : Logic.r, a, b) => andB (proofComplete a) (proofComplete b))
-                in DBool.dmatch t end
+                let val empty   = destruct (fn _ (_ : int) => True)
+                    val single  = destruct (fn _ (_ : int, a) => proofComplete a)
+                    val singleQ = destruct (fn _ (_ : int, _ : Universe.r, a) => proofComplete a)
+                    val double  = destruct (fn _ (_ : int, a, b) => andB (proofComplete a) (proofComplete b))
+                    val cut     = destruct (fn _ (_ : Logic.r, a, b) => andB (proofComplete a) (proofComplete b))
+                in dmatch t end
              }
-
-structure DTX = Destruct(struct
-    type t = transaction xbody
-    con ts = logic' logic
-end)
 
 fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
@@ -358,9 +335,9 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Forall = fn _ => return (),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }}>{renderLogic True 0 (Logic.Rec x)}</span></li></xml>
-                  val default = fn [a] => DTX.mk (fn _ (_ : a) => return bod)
-              in @DTX.dmatch x (_ ++ {
-                   Forall = DTX.mk (fn _ _ =>
+                  val default = fn [a] => destruct (fn _ (_ : a) => return bod : transaction xbody)
+              in @dmatch x (_ ++ {
+                   Forall = destruct (fn _ _ =>
                      r <- makePendingU (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0));
                      return (activate bod (Js.tipHTML nid r)))
                  }) _
@@ -402,10 +379,6 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
     return <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={fn _ => h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>
   end
 
-structure DRenderProof = Destruct(struct
-    type t = transaction xbody
-    con ts = tactic' proof
-end)
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
        (* XXX It would be neat if mouse over caused this to change to show what the result would be, but a little difficult due to the necessity of a redraw *)
@@ -417,22 +390,22 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
        let fun render f t : transaction xbody =
                 sib <- renderProof showError (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
-           val cut     = DRenderProof.mk (fn f (l : logic, a : proof, b : proof) =>
+           val cut     = destruct (fn f (l : logic, a : proof, b : proof) =>
                 Monad.liftM2 join
                     (render (fn x => f (l, x, b)) a)
-                    (render (fn x => f (l, a, x)) b))
-           val empty   = DRenderProof.mk (fn _ (_ : int) =>
-                return <xml/>)
-           val single  = DRenderProof.mk (fn f (n : int, a : proof) =>
-                render (fn x => f (n, x)) a)
-           val singleQ = DRenderProof.mk (fn f (n : int, u : universe, a : proof) =>
-                render (fn x => f (n, u, x)) a)
-           val double  = DRenderProof.mk (fn f (n : int, a : proof, b : proof) =>
+                    (render (fn x => f (l, a, x)) b) : transaction xbody)
+           val empty   = destruct (fn _ (_ : int) =>
+                return <xml/> : transaction xbody)
+           val single  = destruct (fn f (n : int, a : proof) =>
+                render (fn x => f (n, x)) a : transaction xbody)
+           val singleQ = destruct (fn f (n : int, u : universe, a : proof) =>
+                render (fn x => f (n, u, x)) a : transaction xbody)
+           val double  = destruct (fn f (n : int, a : proof, b : proof) =>
                 Monad.liftM2 join
                     (render (fn x => f (n, x, b)) a)
-                    (render (fn x => f (n, a, x)) b))
+                    (render (fn x => f (n, a, x)) b) : transaction xbody)
        in
-       top <- DRenderProof.dmatch t;
+       top <- dmatch t;
        nid <- fresh;
        return <xml>
         <div>{top}</div>
