@@ -25,22 +25,44 @@ open Json
 
 task initialize = Haskell.init
 
+(* Metaprogrammed record making for variants! *)
+con variantMake ts' ts = $(map (fn t => t -> variant ts') ts)
+con mkLabelsAccum r = s :: {Type} -> [r ~ s] => variantMake (r ++ s) r
+
+fun mkLabels [ts ::: {Type}] (fl : folder ts) : variantMake ts ts
+  = @fold [mkLabelsAccum]
+          (fn [nm::_] [v::_] [r::_] [[nm] ~ r]
+              (k : mkLabelsAccum r)
+              [s::_] [[nm = v] ++ r ~ s] => k [[nm = v] ++ s] ++ {nm = make [nm]})
+          (fn [s::_] [[] ~ s] => {}) fl [[]] !
+
+(* Metaprogramming utility function *)
+fun ap [ts ::: {Type}] [tf1 :: Type -> Type] [tf2 :: Type -> Type] (fs : $(map (fn t => tf1 t -> tf2 t) ts)) (xs : $(map tf1 ts)) (fl : folder ts) : $(map tf2 ts)
+  = @map2 [fn t => tf1 t -> tf2 t] [fn t => tf1 t] [tf2] (fn [t] f x => f x) fl fs xs
+
 (* Metaprogrammed variant destruction! (Probably also works for records too) *)
 signature DESTRUCT = sig
     type t
+    con ts :: {Type}
     class destruct
-    val mk : a ::: Type -> (a -> t) -> destruct a
-    val dmatch : ts ::: {Type} -> variant ts -> $(map destruct ts) -> t
+    val mk : a ::: Type -> ((a -> variant ts) -> a -> t) -> destruct a
+    val dmatch : variant ts -> $(map destruct ts) -> folder ts -> t
 end
-functor Destruct(M : sig type t end) : DESTRUCT where type t = M.t = struct
+functor Destruct(M : sig
+    type t
+    con ts :: {Type}
+end) : DESTRUCT
+    where type t = M.t
+    where con ts = M.ts
+= struct
     type t = M.t
-    class destruct a = a -> t
-    fun mk [a] (f : a -> t) : destruct a = f
-    fun dmatch [ts ::: {Type}] (v : variant ts) (dstrs : $(map destruct ts)) : t
-      = match v dstrs
+    con ts = M.ts
+    class destruct a = (a -> variant ts) -> a -> t
+    fun mk [a] (f : (a -> variant ts) -> a -> t) : destruct a = f
+    fun dmatch (v : variant ts) (dstrs : $(map destruct ts)) (fl : folder ts) : t
+    (* Ur/Web not clever enough to calculate these folders, it seems *)
+      = match v (@ap [fn a => a -> variant ts] [fn a => a -> t] dstrs (@mkLabels fl) fl)
 end
-structure DBool = Destruct(struct type t = bool end)
-structure DTX = Destruct(struct type t = transaction xbody end)
 
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 fun activate x m = <xml>{x}{activeCode m}</xml>
@@ -63,17 +85,18 @@ fun renderUniverse ((Universe.Rec (f,xs)) : universe) : xbody =
     }</xml>
 fun zapParseUniverse x : transaction string = return (Haskell.parseUniverse x)
 
+con logic' a = [Pred = string * list universe,
+                Conj = a * a,
+                Disj = a * a,
+                Imp = a * a,
+                Iff = a * a,
+                Not = a,
+                Top = unit,
+                Bot = unit,
+                Forall = string * a,
+                Exists = string * a]
 structure Logic = Json.Recursive(struct
-  con t a = variant [Pred = string * list universe,
-                     Conj = a * a,
-                     Disj = a * a,
-                     Imp = a * a,
-                     Iff = a * a,
-                     Not = a,
-                     Top = unit,
-                     Bot = unit,
-                     Forall = string * a,
-                     Exists = string * a]
+  con t a = variant (logic' a)
   fun json_t [a] (_ : json a) : json (t a) =
     let val json_pred : json (string * list universe) = json_record ("1", "2")
         val json_compound : json (a * a) = json_record ("1", "2")
@@ -111,31 +134,32 @@ val json_sequent : json sequent = json_record {Hyps = "hyps", Cons = "cons"}
 (* our protocol kind of precludes incremental updates or smooth
 redrawing. It would be nice if Ur/Web did this for us. *)
 
-con tactic a = variant [Cut = logic * a * a,
-                        LExact = int,
-                        LConj = int * a,
-                        LDisj = int * a * a,
-                        LImp = int * a * a,
-                        LIff = int * a,
-                        LBot = int,
-                        LTop = int * a,
-                        LNot = int * a,
-                        LForall = int * universe * a,
-                        LExists = int * a,
-                        LContract = int * a,
-                        LWeaken = int * a,
-                        RExact = int,
-                        RConj = int * a * a,
-                        RDisj = int * a,
-                        RImp = int * a,
-                        RIff = int * a * a,
-                        RTop = int,
-                        RBot = int * a,
-                        RNot = int * a,
-                        RForall = int * a,
-                        RExists = int * universe * a,
-                        RWeaken = int * a,
-                        RContract = int * a]
+con tactic' a = [Cut = logic * a * a,
+                 LExact = int,
+                 LConj = int * a,
+                 LDisj = int * a * a,
+                 LImp = int * a * a,
+                 LIff = int * a,
+                 LBot = int,
+                 LTop = int * a,
+                 LNot = int * a,
+                 LForall = int * universe * a,
+                 LExists = int * a,
+                 LContract = int * a,
+                 LWeaken = int * a,
+                 RExact = int,
+                 RConj = int * a * a,
+                 RDisj = int * a,
+                 RImp = int * a,
+                 RIff = int * a * a,
+                 RTop = int,
+                 RBot = int * a,
+                 RNot = int * a,
+                 RForall = int * a,
+                 RExists = int * universe * a,
+                 RWeaken = int * a,
+                 RContract = int * a]
+con tactic a = variant (tactic' a)
 fun json_tactic [a] (_ : json a) : json (tactic a) =
   let val json_cut : json (logic * a * a) = json_record ("1", "2", "3")
       val json_single : json (int * a) = json_record ("1", "2")
@@ -228,17 +252,26 @@ type proof = Proof.r
 
 fun andB a b = if a then b else False
 
+structure DBool = Destruct(struct
+    type t = bool
+    con ts = tactic' proof
+end)
 fun proofComplete (Proof.Rec p) : bool =
     match p {Goal = fn _ => False,
              Pending = fn _ => False,
              Proof = fn (_, t) =>
-                let val empty   = DBool.mk (fn _ : int => True)
-                    val single  = DBool.mk (fn (_ : int, a) => proofComplete a)
-                    val singleQ = DBool.mk (fn (_ : int, _ : Universe.r, a) => proofComplete a)
-                    val double  = DBool.mk (fn (_ : int, a, b) => andB (proofComplete a) (proofComplete b))
-                    val cut     = DBool.mk (fn (_ : Logic.r, a, b) => andB (proofComplete a) (proofComplete b))
+                let val empty   = DBool.mk (fn _ (_ : int) => True)
+                    val single  = DBool.mk (fn _ (_ : int, a) => proofComplete a)
+                    val singleQ = DBool.mk (fn _ (_ : int, _ : Universe.r, a) => proofComplete a)
+                    val double  = DBool.mk (fn _ (_ : int, a, b) => andB (proofComplete a) (proofComplete b))
+                    val cut     = DBool.mk (fn _ (_ : Logic.r, a, b) => andB (proofComplete a) (proofComplete b))
                 in DBool.dmatch t end
              }
+
+structure DTX = Destruct(struct
+    type t = transaction xbody
+    con ts = logic' logic
+end)
 
 fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x)))
@@ -283,23 +316,13 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Bot    = fn _ => makePending (make [#LBot] i),
                     Forall = fn _ => return (),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
-                    }}>
-                {renderLogic True 0 (Logic.Rec x)}</span></li></xml>
-              in
-              match x {
-                Pred   = fn _ => return bod,
-                Conj   = fn _ => return bod,
-                Disj   = fn _ => return bod,
-                Imp    = fn _ => return bod,
-                Iff    = fn _ => return bod,
-                Not    = fn _ => return bod,
-                Top    = fn _ => return bod,
-                Bot    = fn _ => return bod,
-                Forall = fn _ =>
-                    r <- makePendingU (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0));
-                    return (activate bod (Js.tipHTML nid r)),
-                Exists = fn _ => return bod
-              }
+                    }}>{renderLogic True 0 (Logic.Rec x)}</span></li></xml>
+                  val default = fn [a] => DTX.mk (fn _ (_ : a) => return bod)
+              in @DTX.dmatch x (_ ++ {
+                   Forall = DTX.mk (fn _ _ =>
+                     r <- makePendingU (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0));
+                     return (activate bod (Js.tipHTML nid r)))
+                 }) _
               end
             ) s.Hyps;
     right <- List.mapXiM (fn i (Logic.Rec x) =>
@@ -337,6 +360,11 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
     nid <- fresh;
     return <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={fn _ => h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>
   end
+
+structure DRenderProof = Destruct(struct
+    type t = transaction xbody
+    con ts = tactic' proof
+end)
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
        (* XXX It would be neat if mouse over caused this to change to show what the result would be, but a little difficult due to the necessity of a redraw *)
@@ -348,41 +376,16 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
        let fun render f t : transaction xbody =
                 sib <- renderProof showError (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
-           fun empty (_ : int) : transaction xbody = return <xml/>
-           (* explicit signatures here to avoid "too-deep unification variable" problems *)
-           fun single f (n : int, a : proof) : transaction xbody = render (fn x => f (n, x)) a
-           fun singleQ f (n : int, u : universe, a : proof) : transaction xbody =
-                render (fn x => f (n, u, x)) a
-           fun double f (n : int, a : proof, b : proof) : transaction xbody =
-                Monad.liftM2 join (render (fn x => f (n, x, b)) a) (render (fn x => f (n, a, x)) b)
+           val cut = DRenderProof.mk (fn f (l : logic, a : proof, b : proof) =>
+                        Monad.liftM2 join (render (fn x => f (l, x, b)) a) (render (fn x => f (l, a, x)) b))
+           val empty = DRenderProof.mk (fn _ (_ : int) => return <xml/>)
+           val single = DRenderProof.mk (fn f (n : int, a : proof) => render (fn x => f (n, x)) a)
+           val singleQ = DRenderProof.mk (fn f (n : int, u : universe, a : proof) =>
+                render (fn x => f (n, u, x)) a)
+           val double = DRenderProof.mk (fn f (n : int, a : proof, b : proof) =>
+                Monad.liftM2 join (render (fn x => f (n, x, b)) a) (render (fn x => f (n, a, x)) b))
        in
-       top <- match t {
-          Cut       = fn (l, a, b) => Monad.liftM2 join (render (fn x => make [#Cut] (l, x, b)) a) (render (fn x => make [#Cut] (l, a, x)) b),
-          LExact    = empty,
-          LBot      = empty,
-          RExact    = empty,
-          RTop      = empty,
-          LConj     = single (make [#LConj]),
-          LNot      = single (make [#LNot]),
-          LExists   = single (make [#LExists]),
-          LContract = single (make [#LContract]),
-          LWeaken   = single (make [#LWeaken]),
-          LTop      = single (make [#LTop]),
-          RDisj     = single (make [#RDisj]),
-          RImp      = single (make [#RImp]),
-          LIff      = single (make [#LIff]),
-          RNot      = single (make [#RNot]),
-          RBot      = single (make [#RBot]),
-          RForall   = single (make [#RForall]),
-          RContract = single (make [#RContract]),
-          RWeaken   = single (make [#RWeaken]),
-          LForall   = singleQ (make [#LForall]),
-          RExists   = singleQ (make [#RExists]),
-          LDisj     = double (make [#LDisj]),
-          LImp      = double (make [#LImp]),
-          RIff      = double (make [#RIff]),
-          RConj     = double (make [#RConj])
-       };
+       top <- DRenderProof.dmatch t;
        nid <- fresh;
        return <xml>
         <div>{top}</div>
