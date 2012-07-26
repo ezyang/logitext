@@ -323,7 +323,8 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
     in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
               nid <- fresh;
-              let val bod = <xml><li id={nid}><span class={junct} onclick={fn _ => match x {
+              let val bod = <xml><li id={nid}><span class={junct} onclick={fn _ =>
+                  match x {
                     Pred   = fn _ => makePending (make [#LExact] i),
                     Conj   = fn _ => makePending (make [#LConj] (i, 0)),
                     Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
@@ -358,21 +359,12 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Exists = fn _ => return ()
                     }}>
                 {renderLogic True 0 (Logic.Rec x)}</span></li></xml>
-              in
-              match x {
-                Pred   = fn _ => return bod,
-                Conj   = fn _ => return bod,
-                Disj   = fn _ => return bod,
-                Imp    = fn _ => return bod,
-                Iff    = fn _ => return bod,
-                Not    = fn _ => return bod,
-                Top    = fn _ => return bod,
-                Bot    = fn _ => return bod,
-                Forall = fn _ => return bod,
-                Exists = fn _ =>
-                    r <- makePendingU (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0));
-                    return (activate bod (Js.tipHTML nid r))
-              }
+                val default = fn [a] => destruct (fn _ (_ : a) => return bod : transaction xbody)
+              in @dmatch x (_ ++ {
+                   Exists = destruct (fn _ _ =>
+                     r <- makePendingU (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0));
+                     return (activate bod (Js.tipHTML nid r)))
+                 }) _
               end
         ) s.Cons;
     nid <- fresh;
