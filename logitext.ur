@@ -25,10 +25,14 @@ open Json
 
 task initialize = Haskell.init
 
+(* Analogous to applicative ap e.g. <*>, of type
+   [f (a -> b) -> f a -> f b] *)
+fun ap [ts ::: {Type}] [tf1 :: Type -> Type] [tf2 :: Type -> Type] (fs : $(map (fn t => tf1 t -> tf2 t) ts)) (xs : $(map tf1 ts)) (fl : folder ts) : $(map tf2 ts)
+  = @map2 [fn t => tf1 t -> tf2 t] [fn t => tf1 t] [tf2] (fn [t] f x => f x) fl fs xs
+
 (* Metaprogrammed record making for variants! *)
 con variantMake ts' ts = $(map (fn t => t -> variant ts') ts)
 con mkLabelsAccum r = s :: {Type} -> [r ~ s] => variantMake (r ++ s) r
-
 fun mkLabels [ts ::: {Type}] (fl : folder ts) : variantMake ts ts
   = @fold [mkLabelsAccum]
           (fn [nm::_] [v::_] [r::_] [[nm] ~ r]
@@ -36,11 +40,48 @@ fun mkLabels [ts ::: {Type}] (fl : folder ts) : variantMake ts ts
               [s::_] [[nm = v] ++ r ~ s] => k [[nm = v] ++ s] ++ {nm = make [nm]})
           (fn [s::_] [[] ~ s] => {}) fl [[]] !
 
-(* Metaprogramming utility function *)
-fun ap [ts ::: {Type}] [tf1 :: Type -> Type] [tf2 :: Type -> Type] (fs : $(map (fn t => tf1 t -> tf2 t) ts)) (xs : $(map tf1 ts)) (fl : folder ts) : $(map tf2 ts)
-  = @map2 [fn t => tf1 t -> tf2 t] [fn t => tf1 t] [tf2] (fn [t] f x => f x) fl fs xs
+(* Metaprogrammed variant destruction.
 
-(* Metaprogrammed variant destruction! (Probably also works for records too) *)
+This uses a combination of type classes and metaprogramming to make
+it easy to write case-matches on very large variants with many
+similar elements.  Here's how you use it:
+
+    1. Pick the [variant ts] to destruct, and the return type
+       of the destruction [t].  Instantiate the Destruct functor
+       with these types:
+
+            structure DBool = Destruct(struct
+                type t = bool
+                con ts = tactic' proof
+            end)
+
+    2. For every type in the variant, write a local typeclass function
+       which reduces it to t, and register as such using the 'mk'
+       function in the module you created.
+
+            let val empty = DBool.mk (fn _ (_ : int) => True)
+
+       These functions also take an initial argument, which has
+       type [a -> variant ts]; e.g. you can use this to create
+       a new copy of the variant with different values!
+       Make sure you specify type signatures on the argument t
+       so that we can identify who this typeclass is for.
+
+    3. Do the destruct using 'match':
+
+            DBool.dmatch t
+
+       If you need to override specific constructors, use this idiom:
+
+            @DBool.dmatch t (_ ++ {
+                YourConstr = DBool.mk (fn _ _ => ...)
+            }) _
+
+How does it work?  Very simple: it uses local typeclasses + Ur/Web's
+support for automatically instantiating records of typeclasses.  The
+module nonsense is required because Ur/Web doesn't support
+multi parameter type classes.
+*)
 signature DESTRUCT = sig
     type t
     con ts :: {Type}
@@ -376,14 +417,20 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
        let fun render f t : transaction xbody =
                 sib <- renderProof showError (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
-           val cut = DRenderProof.mk (fn f (l : logic, a : proof, b : proof) =>
-                        Monad.liftM2 join (render (fn x => f (l, x, b)) a) (render (fn x => f (l, a, x)) b))
-           val empty = DRenderProof.mk (fn _ (_ : int) => return <xml/>)
-           val single = DRenderProof.mk (fn f (n : int, a : proof) => render (fn x => f (n, x)) a)
+           val cut     = DRenderProof.mk (fn f (l : logic, a : proof, b : proof) =>
+                Monad.liftM2 join
+                    (render (fn x => f (l, x, b)) a)
+                    (render (fn x => f (l, a, x)) b))
+           val empty   = DRenderProof.mk (fn _ (_ : int) =>
+                return <xml/>)
+           val single  = DRenderProof.mk (fn f (n : int, a : proof) =>
+                render (fn x => f (n, x)) a)
            val singleQ = DRenderProof.mk (fn f (n : int, u : universe, a : proof) =>
                 render (fn x => f (n, u, x)) a)
-           val double = DRenderProof.mk (fn f (n : int, a : proof, b : proof) =>
-                Monad.liftM2 join (render (fn x => f (n, x, b)) a) (render (fn x => f (n, a, x)) b))
+           val double  = DRenderProof.mk (fn f (n : int, a : proof, b : proof) =>
+                Monad.liftM2 join
+                    (render (fn x => f (n, x, b)) a)
+                    (render (fn x => f (n, a, x)) b))
        in
        top <- DRenderProof.dmatch t;
        nid <- fresh;
