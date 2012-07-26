@@ -22,74 +22,9 @@ style green
 style primaryConnective
 
 open Json
+open Variant
 
 task initialize = Haskell.init
-
-(* Analogous to applicative ap e.g. <*>, of type
-   [f (a -> b) -> f a -> f b] *)
-fun ap [ts ::: {Type}] [tf1 :: Type -> Type] [tf2 :: Type -> Type] (fs : $(map (fn t => tf1 t -> tf2 t) ts)) (xs : $(map tf1 ts)) (fl : folder ts) : $(map tf2 ts)
-  = @map2 [fn t => tf1 t -> tf2 t] [fn t => tf1 t] [tf2] (fn [t] f x => f x) fl fs xs
-
-(* Metaprogrammed record making for variants! *)
-con variantMake ts' ts = $(map (fn t => t -> variant ts') ts)
-con mkLabelsAccum r = s :: {Type} -> [r ~ s] => variantMake (r ++ s) r
-fun mkLabels [ts ::: {Type}] (fl : folder ts) : variantMake ts ts
-  = @fold [mkLabelsAccum]
-          (fn [nm::_] [v::_] [r::_] [[nm] ~ r]
-              (k : mkLabelsAccum r)
-              [s::_] [[nm = v] ++ r ~ s] => k [[nm = v] ++ s] ++ {nm = make [nm]})
-          (fn [s::_] [[] ~ s] => {}) fl [[]] !
-
-(* Metaprogrammed variant destruction.
-
-This uses a combination of type classes and metaprogramming to make
-it easy to write case-matches on very large variants with many
-similar elements.  Here's how you use it:
-
-    1. Open up this module:
-
-            open Destruct
-
-    2. For every type in the variant, write a local typeclass function
-       which reduces it to t, and register as such using the 'destruct'
-       function in the module you created.
-
-            let val empty = destruct (fn _ (_ : int) => True)
-
-       These functions also take an initial argument, which has
-       type [a -> variant ts]; e.g. you can use this to create
-       a new copy of the variant with different values!
-       Make sure you specify type signatures on the argument [t]
-       so that we can identify who this typeclass is for.  (If you
-       use type classes to construct the return value, you may
-       also need to declare the return type explicitly.)
-
-    3. Do the destruct using 'dmatch':
-
-            dmatch t
-
-       If you need to override specific constructors, use this idiom:
-
-            @dmatch t (_ ++ {
-                YourConstr = destruct (fn _ _ => ...)
-            }) _
-
-How does it work?  Very simple: it uses local typeclasses + Ur/Web's
-support for automatically instantiating records of typeclasses.
-*)
-signature DESTRUCT = sig
-    class destruct :: {Type} -> Type -> Type -> Type
-    val destruct : ts ::: {Type} -> t ::: Type -> a ::: Type -> ((a -> variant ts) -> a -> t) -> destruct ts t a
-    val dmatch : ts ::: {Type} -> t ::: Type -> variant ts -> $(map (destruct ts t) ts) -> folder ts -> t
-end
-structure Destruct : DESTRUCT = struct
-    class destruct = fn ts t a => (a -> variant ts) -> a -> t
-    fun destruct [ts] [t] [a] (f : (a -> variant ts) -> a -> t) : destruct ts t a = f
-    fun dmatch [ts] [t] (v : variant ts) (dstrs : $(map (destruct ts t) ts)) (fl : folder ts) : t
-    (* Ur/Web not clever enough to calculate these folders, it seems *)
-      = match v (@ap [fn a => a -> variant ts] [fn a => a -> t] dstrs (@mkLabels fl) fl)
-end
-open Destruct
 
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 fun activate x m = <xml>{x}{activeCode m}</xml>
@@ -283,12 +218,12 @@ fun proofComplete (Proof.Rec p) : bool =
     match p {Goal = fn _ => False,
              Pending = fn _ => False,
              Proof = fn (_, t) =>
-                let val empty   = destruct (fn _ (_ : int) => True)
-                    val single  = destruct (fn _ (_ : int, a) => proofComplete a)
-                    val singleQ = destruct (fn _ (_ : int, _ : Universe.r, a) => proofComplete a)
-                    val double  = destruct (fn _ (_ : int, a, b) => andB (proofComplete a) (proofComplete b))
-                    val cut     = destruct (fn _ (_ : Logic.r, a, b) => andB (proofComplete a) (proofComplete b))
-                in dmatch t end
+                let val empty   = declareCase (fn _ (_ : int) => True)
+                    val single  = declareCase (fn _ (_ : int, a) => proofComplete a)
+                    val singleQ = declareCase (fn _ (_ : int, _ : Universe.r, a) => proofComplete a)
+                    val double  = declareCase (fn _ (_ : int, a, b) => andB (proofComplete a) (proofComplete b))
+                    val cut     = declareCase (fn _ (_ : Logic.r, a, b) => andB (proofComplete a) (proofComplete b))
+                in typeCase t end
              }
 
 fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : transaction xbody =
@@ -309,7 +244,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                 in nid <- fresh;
                    return <xml><div>
                       <ctextbox id={nid} size=6 source={r}
-                        onkeyup={fn k => if eq k.KeyCode 13
+                        onkeyup={fn k => if Basis.eq k.KeyCode 13
                             then doPrompt
                             else return ()} />
                       {activeCode (giveFocus nid)}
@@ -336,9 +271,9 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Forall = fn _ => return (),
                     Exists = fn _ => makePending (make [#LExists] (i, 0))
                     }}>{renderLogic True 0 (Logic.Rec x)}</span></li></xml>
-                  val default = fn [a] => destruct (fn _ (_ : a) => return bod : transaction xbody)
-              in @dmatch x (_ ++ {
-                   Forall = destruct (fn _ _ =>
+                  val default = fn [a] => declareCase (fn _ (_ : a) => return bod : transaction xbody)
+              in @typeCase x (_ ++ {
+                   Forall = declareCase (fn _ _ =>
                      r <- makePendingU (fn u => make [#LForall] (i, u, 0)) (make [#LContract] (i, 0));
                      return (activate bod (Js.tipHTML nid r)))
                  }) _
@@ -359,9 +294,9 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
                     Exists = fn _ => return ()
                     }}>
                 {renderLogic True 0 (Logic.Rec x)}</span></li></xml>
-                val default = fn [a] => destruct (fn _ (_ : a) => return bod : transaction xbody)
-              in @dmatch x (_ ++ {
-                   Exists = destruct (fn _ _ =>
+                val default = fn [a] => declareCase (fn _ (_ : a) => return bod : transaction xbody)
+              in @typeCase x (_ ++ {
+                   Exists = declareCase (fn _ _ =>
                      r <- makePendingU (fn u => make [#RExists] (i, u, 0)) (make [#RContract] (i, 0));
                      return (activate bod (Js.tipHTML nid r)))
                  }) _
@@ -382,22 +317,22 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
        let fun render f t : transaction xbody =
                 sib <- renderProof showError (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
                 return <xml><div class={sibling}>{sib}</div></xml>
-           val cut     = destruct (fn f (l : logic, a : proof, b : proof) =>
+           val cut     = declareCase (fn f (l : logic, a : proof, b : proof) =>
                 Monad.liftM2 join
                     (render (fn x => f (l, x, b)) a)
                     (render (fn x => f (l, a, x)) b) : transaction xbody)
-           val empty   = destruct (fn _ (_ : int) =>
+           val empty   = declareCase (fn _ (_ : int) =>
                 return <xml/> : transaction xbody)
-           val single  = destruct (fn f (n : int, a : proof) =>
+           val single  = declareCase (fn f (n : int, a : proof) =>
                 render (fn x => f (n, x)) a : transaction xbody)
-           val singleQ = destruct (fn f (n : int, u : universe, a : proof) =>
+           val singleQ = declareCase (fn f (n : int, u : universe, a : proof) =>
                 render (fn x => f (n, u, x)) a : transaction xbody)
-           val double  = destruct (fn f (n : int, a : proof, b : proof) =>
+           val double  = declareCase (fn f (n : int, a : proof, b : proof) =>
                 Monad.liftM2 join
                     (render (fn x => f (n, x, b)) a)
                     (render (fn x => f (n, a, x)) b) : transaction xbody)
        in
-       top <- dmatch t;
+       top <- typeCase t;
        nid <- fresh;
        return <xml>
         <div>{top}</div>
