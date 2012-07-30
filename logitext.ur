@@ -459,7 +459,6 @@ fun mkWorkspaceRaw showErrors pf =
   bamf <- source <xml/>;
   let fun handler x =
     set proofStatus proofIsPending;
-    nid <- fresh;
     set bamf (activeCode Js.clearTooltips);
     bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
   in return <xml>
