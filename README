@@ -27,15 +27,14 @@ Test this setup by running the following commands:
 
 2) Get the Ur metaprogramming library
 
-    hg clone https://bitbucket.org/ezyang/meta
+    hg clone http://hg.impredicative.com/meta/
 
 Place this as a subdirectory of the logitext folder, and it will
-automatically get picked up. (XXX My two patches should be hitting
-mainline soon.)
+automatically get picked up.
 
 3) Get the Ur/Web compiler
 
-    hg clone https://bitbucket.org/ezyang/urweb
+    hg clone http://hg.impredicative.com/urweb
     # build Ur/Web using the standard method
 
 You have a few options for setting up Ur/Web.  If you can install
@@ -52,12 +51,10 @@ and don't bother installing into an alternate prefix.  You'll
 still need to modify PATH and C_INCLUDE_PATH, but you can directly
 point them at the build directory.
 
-(XXX I don't know if Adam is going to take this patch.)
-
 4) Prepare GHC and Haskell
 
 Any widely available distribution should do; the author personally
-is using 7.0.4 with the Haskell Platform.  Run
+is using 7.4.1 with the Haskell Platform.  Run
 
     cabal configure
 
