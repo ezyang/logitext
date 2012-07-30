@@ -76,6 +76,15 @@ as necessary.  You can also run
 
 to get continuous typechecking on the Ur/Web files.
 
+6) Serve static files
+
+Ur/Web doesn't support serving static files natively, so you will need
+to have another running web server to serve the external JavaScript and
+CSS files.  By default they are expected to be at the URL
+http://localhost/logitext/ but you can change this by editing
+js.urp, logitext.urp, and logitext.ur (be sure to change the <link>
+href, the script directives and the allow url directives).
+
 Troubleshooting
 ---------------
 
