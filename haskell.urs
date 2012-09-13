@@ -1,4 +1,4 @@
-val init : unit -> transaction unit
-val refine : string -> string
-val start : string -> string
-val parseUniverse : string -> string
+val initClassicalFOL : unit -> transaction unit
+val refineClassicalFOL : string -> string
+val startClassicalFOL : string -> string
+val parseUniverseClassicalFOL : string -> string

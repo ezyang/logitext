@@ -26,7 +26,7 @@ open Json
 val declareCase = @@Variant.declareCase
 val typeCase = @@Variant.typeCase
 
-task initialize = Haskell.init
+task initialize = Haskell.initClassicalFOL
 
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 fun activate x m = <xml>{x}{activeCode m}</xml>
@@ -47,7 +47,7 @@ fun renderUniverse ((Universe.Rec (f,xs)) : universe) : xbody =
     | Cons _ => <xml>(<ul class={commaList}>{List.mapX (fn x => <xml><li>{renderUniverse x}</li></xml>) xs}</ul>)</xml>
     | Nil => <xml/>
     }</xml>
-fun zapParseUniverse x : transaction string = return (Haskell.parseUniverse x)
+fun zapParseUniverse x : transaction string = return (Haskell.parseUniverseClassicalFOL x)
 
 con logic' a = [Pred = string * list universe,
                 Conj = a * a,
@@ -364,7 +364,7 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
        end
     }
 
-fun zapRefine (x : proof) : transaction string  = return (Haskell.refine (toJson x))
+fun zapRefine (x : proof) : transaction string  = return (Haskell.refineClassicalFOL (toJson x))
 
 val head = <xml>
     <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
@@ -476,7 +476,7 @@ fun mkWorkspaceRaw showErrors pf =
   end
 
 fun workspace goal =
-  let val parsedGoal = Haskell.start goal
+  let val parsedGoal = Haskell.startClassicalFOL goal
   in <xml><active code={mkWorkspaceRaw True parsedGoal} /></xml>
   end
 fun example proof = <xml><active code={mkWorkspaceRaw True proof} /></xml>

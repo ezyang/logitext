@@ -47,22 +47,22 @@ serialize ctx m = lazyByteStringToUrWebCString ctx . E.encode . toJSON =<< resul
 
 -- (f =<< peekUTF8String cs)
 
-initFFI :: IO ()
-initFFI = forkIO (evaluate theCoq >> return ()) >> return ()
+_uw_Haskell_initClassicalFOL :: IO ()
+_uw_Haskell_initClassicalFOL = forkIO (evaluate theCoq >> return ()) >> return ()
 
-startFFI :: Ptr UrwebContext -> CString -> IO CString
-startFFI ctx s = serialize ctx (start =<< peekUTF8String s)
+uw_Haskell_startClassicalFOL :: Ptr UrwebContext -> CString -> IO CString
+uw_Haskell_startClassicalFOL ctx s = serialize ctx (start =<< peekUTF8String s)
 
-parseUniverseFFI :: Ptr UrwebContext -> CString -> IO CString
-parseUniverseFFI ctx s = serialize ctx (parseUniverse =<< peekUTF8String s)
+uw_Haskell_parseUniverseClassicalFOL :: Ptr UrwebContext -> CString -> IO CString
+uw_Haskell_parseUniverseClassicalFOL ctx s = serialize ctx (parseUniverse =<< peekUTF8String s)
 
 peekUTF8String :: CString -> IO String
 peekUTF8String = liftM U.toString . S.packCString
 
-refineFFI :: Ptr UrwebContext -> CString -> IO CString
-refineFFI ctx s = serialize ctx $ do
+uw_Haskell_refineClassicalFOL :: Ptr UrwebContext -> CString -> IO CString
+uw_Haskell_refineClassicalFOL ctx s = serialize ctx $ do
     bs <- S.packCString s
-    r <- maybe (error "ClassicalFOLFFI.refineFFI") return (decode (L.fromChunks [bs]))
+    r <- maybe (error "ClassicalFOLFFI.uw_Haskell_refineClassicalFOL") return (decode (L.fromChunks [bs]))
     refine r
 
 lazyByteStringToUrWebCString :: Ptr UrwebContext -> L.ByteString -> IO CString
@@ -83,10 +83,10 @@ lazyByteStringToUrWebCString ctx bs = do
     foldlChunks f x
     -}
 
-foreign export ccall refineFFI :: Ptr UrwebContext -> CString -> IO CString
-foreign export ccall startFFI :: Ptr UrwebContext -> CString -> IO CString
-foreign export ccall parseUniverseFFI :: Ptr UrwebContext -> CString -> IO CString
-foreign export ccall initFFI :: IO ()
+foreign export ccall uw_Haskell_refineClassicalFOL :: Ptr UrwebContext -> CString -> IO CString
+foreign export ccall uw_Haskell_startClassicalFOL :: Ptr UrwebContext -> CString -> IO CString
+foreign export ccall uw_Haskell_parseUniverseClassicalFOL :: Ptr UrwebContext -> CString -> IO CString
+foreign export ccall _uw_Haskell_initClassicalFOL :: IO ()
 
 foreign import ccall "urweb.h uw_malloc"
     uw_malloc :: Ptr UrwebContext -> Int -> IO (Ptr a)

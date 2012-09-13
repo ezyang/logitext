@@ -2,6 +2,6 @@ include haskell.h
 ffi haskell
 link haskell.c
 link ClassicalFOLFFI.hs
-effectful Haskell.init
-benignEffectful Haskell.start
+effectful Haskell.initClassicalFOL
+benignEffectful Haskell.startClassicalFOL
 linker ghc -no-hs-main -threaded
