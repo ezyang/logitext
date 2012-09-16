@@ -22,7 +22,7 @@ errorModule :: String -> a
 errorModule s = error ("Linear." ++ s)
 
 -- Sequent
-data S = S { hyps :: [L], con :: L }
+data S = S { persistent :: [L], ephemeral :: [L], goal :: L }
     deriving (Show, Eq, Data, Typeable)
 
 data L = Prop String
@@ -54,8 +54,9 @@ linearStyle = emptyDef
                 , P.opStart         = P.opLetter linearStyle
                 , P.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~,"
                 , P.reservedOpNames =
-                    ["(",")",".",",",
+                    ["(",")",".",",",";",
                     "->", "→",
+                    "-o", "⊸",
                     "<->", "↔", "<=>",
                     "/\\","∧",
                     "\\/","∨",
@@ -110,8 +111,9 @@ lexeme     = P.lexeme lexer
 -- also Unicode supported, so that copypasta works
 
 sequent :: Parser S
-sequent =  try (S <$> commaSep expr <* choice [reservedOp "|-", reservedOp "⊢" ] <*> expr)
-       <|> try (S [] <$> expr)
+sequent = try (S <$> commaSep expr <* choice [reservedOp ";"] <*> commaSep expr <* choice [reservedOp "|-", reservedOp "⊢" ] <*> expr)
+       <|> try (S <$> commaSep expr <*> return [] <* choice [reservedOp "|-", reservedOp "⊢" ] <*> expr)
+       <|> try (S [] [] <$> expr)
        <?> "sequent"
 
 table :: [[Operator String u Identity L]]
