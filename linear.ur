@@ -22,6 +22,7 @@ style green
 style primaryConnective
 
 open Json
+open List
 
 task initialize = Haskell.initVanilla
 
@@ -47,25 +48,57 @@ structure Logic = Json.Recursive(struct
           Not = "Not", Top = "Top", Bot = "Bot"}
     end
 end)
-type logic = Logic.r
+type rawlogic = Logic.r
+datatype logic = Prop of string
+               | Conj of logic * logic
+               | Disj of logic * logic
+               | Imp of logic * logic
+               | Iff of logic * logic
+               | Not of logic
+               | Top
+               | Bot
+fun convlogic ((Logic.Rec l) : rawlogic) = match l
+  { Prop = Prop
+  , Conj = fn (a,b) => Conj (convlogic a, convlogic b)
+  , Disj = fn (a,b) => Disj (convlogic a, convlogic b)
+  , Imp = fn (a,b) => Imp (convlogic a, convlogic b)
+  , Iff = fn (a,b) => Iff (convlogic a, convlogic b)
+  , Not = fn a => Not (convlogic a)
+  , Top = fn _ => Top
+  , Bot = fn _ => Bot
+  }
+fun logicconv l = Logic.Rec (case l of
+    Prop s => make [#Prop] s
+  | Conj (a,b) => make [#Conj] (logicconv a, logicconv b)
+  | Disj (a,b) => make [#Disj] (logicconv a, logicconv b)
+  | Imp (a,b) => make [#Imp] (logicconv a, logicconv b)
+  | Iff (a,b) => make [#Iff] (logicconv a, logicconv b)
+  | Not a => make [#Not] (logicconv a)
+  | Top => make [#Top] ()
+  | Bot => make [#Bot] ()
+  )
+
+val json_logic : json logic = mkJson {
+  ToJson = fn a => toJson (logicconv a),
+  FromJson = fn a => case (fromJson' a) of (x,y) => (convlogic x, y)}
 
 fun renderParen (b : bool) (r : xbody) : xbody = if b then <xml>({r})</xml> else r
-fun renderLogic top p ((Logic.Rec r) : logic) : xbody =
+fun renderLogic top p (r : logic) : xbody =
   let fun symbol s = if top then <xml><span class={primaryConnective}>{[s]}</span></xml> else <xml>{[s]}</xml>
-  in match r
-  {Prop = fn x => <xml>{[x]}</xml>,
-   Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic False 3 a} {symbol "∧"} {renderLogic False 3 b}</xml>,
-   Disj = fn (a, b) => renderParen (p>2) <xml>{renderLogic False 2 a} {symbol "∨"} {renderLogic False 2 b}</xml>,
-   Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "→"} {renderLogic False 1 b}</xml>,
-   Iff = fn (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "↔"} {renderLogic False 2 b}</xml>,
-   Not = fn a => renderParen (p>4) <xml>{symbol "¬"}{renderLogic False 5 a}</xml>,
-   Top = fn _ => <xml>⊤</xml>,
-   Bot = fn _ => <xml>⊥</xml>
-  }
+  in case r of
+     Prop x => <xml>{[x]}</xml>
+   | Conj (a, b) => renderParen (p>3) <xml>{renderLogic False 3 a} {symbol "∧"} {renderLogic False 3 b}</xml>
+   | Disj (a, b) => renderParen (p>2) <xml>{renderLogic False 2 a} {symbol "∨"} {renderLogic False 2 b}</xml>
+   | Imp (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "→"} {renderLogic False 1 b}</xml>
+   | Iff (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "↔"} {renderLogic False 2 b}</xml>
+   | Not a => renderParen (p>4) <xml>{symbol "¬"}{renderLogic False 5 a}</xml>
+   | Top => <xml>⊤</xml>
+   | Bot => <xml>⊥</xml>
   end
 
 type sequent = { Hyps : list logic, Con : logic }
 val json_sequent : json sequent = json_record {Hyps = "hyps", Con = "con"}
+fun mkSequent hyps concl = { Hyps = hyps, Con = concl }
 
 con tactic' a = [LExact = int,
                  LConj = int * a,
@@ -174,41 +207,37 @@ fun proofComplete (Proof.Rec p) : bool =
                 in typeCase t end
              }
 
-(* XXX genericize me *)
-fun unrec (Logic.Rec r) = r
-
 (* h is a callback to the proof renderer, which instructs the proof renderer
 to replace the Goal with a Pending proof object.  A proof renderer will
 take a Pending proof object and attempt to convert it into a Proof object. *)
 fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x))) in
-    left <- List.mapXiM (fn i (Logic.Rec x) =>
+    left <- List.mapXiM (fn i x =>
               nid <- fresh;
               let val bod = <xml><li id={nid}><span class={junct} onclick={fn _ =>
-                  match x {
-                    Prop   = fn _ => makePending (make [#LExact] i),
-                    Conj   = fn _ => makePending (make [#LConj] (i, 0)),
-                    Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
-                    Imp    = fn _ => makePending (make [#LImp] (i, 0, 1)),
-                    Iff    = fn _ => makePending (make [#LIff] (i, 0)),
-                    Not    = fn _ => makePending (make [#LNot] (i, 0)),
-                    Top    = fn _ => makePending (make [#LTop] (i, 0)),
-                    Bot    = fn _ => makePending (make [#LBot] i),
-                    }}>{renderLogic True 0 (Logic.Rec x)}</span></li></xml>
-                  val default = fn [a] => declareCase (fn _ (_ : a) => return bod : transaction xbody)
-              in typeCase x
+                  case x of
+                    Prop _ => makePending (make [#LExact] i)
+                  | Conj _ => makePending (make [#LConj] (i, 0))
+                  | Disj _ => makePending (make [#LDisj] (i, 0, 1))
+                  | Imp  _ => makePending (make [#LImp] (i, 0, 1))
+                  | Iff  _ => makePending (make [#LIff] (i, 0))
+                  | Not  _ => makePending (make [#LNot] (i, 0))
+                  | Top    => makePending (make [#LTop] (i, 0))
+                  | Bot    => makePending (make [#LBot] i)
+                    }>{renderLogic True 0 x}</span></li></xml>
+              in return bod
               end
             ) s.Hyps;
-    let val right = <xml><span class={junct} onclick={fn _ => match (unrec s.Con) {
-            Prop   = fn _ => makePending (make [#RExact] ()),
-            Conj   = fn _ => makePending (make [#RConj] (0, 1)),
-            Disj   = fn _ => makePending (make [#RDisj] 0),
-            Imp    = fn _ => makePending (make [#RImp] 0),
-            Iff    = fn _ => makePending (make [#RIff] (0, 1)),
-            Not    = fn _ => makePending (make [#RNot] 0),
-            Top    = fn _ => makePending (make [#RTop] ()),
-            Bot    = fn _ => return (),
-            }}>
+    let val right = <xml><span class={junct} onclick={fn _ => case s.Con of
+            Prop _ => makePending (make [#RExact] ())
+          | Conj _ => makePending (make [#RConj] (0, 1))
+          | Disj _ => makePending (make [#RDisj] 0)
+          | Imp  _ => makePending (make [#RImp] 0)
+          | Iff  _ => makePending (make [#RIff] (0, 1))
+          | Not  _ => makePending (make [#RNot] 0)
+          | Top    => makePending (make [#RTop] ())
+          | Bot    => return ()
+            }>
         {renderLogic True 0 s.Con}</span></xml>
     in
     nid <- fresh;
@@ -216,25 +245,40 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
     end
   end
 
-fun refine showError (s : sequent) (t : tactic int) : transaction proof = match t
-   { LExact     = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LConj      = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LDisj      = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LImp       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LIff       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LBot       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LTop       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LNot       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LContract  = fn _ => return (Proof.Rec (make [#Goal] s))
-   , LWeaken    = fn _ => return (Proof.Rec (make [#Goal] s))
-   , RExact     = fn _ => return (Proof.Rec (make [#Goal] s))
-   , RConj      = fn _ => return (Proof.Rec (make [#Goal] s))
-   , RDisj      = fn _ => return (Proof.Rec (make [#Goal] s))
-   , RImp       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , RIff       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , RTop       = fn _ => return (Proof.Rec (make [#Goal] s))
-   , RNot       = fn _ => return (Proof.Rec (make [#Goal] s))
-   }
+fun refine showError (s : sequent) (t : tactic int) : transaction proof =
+  let fun err e = showError e; return (make [#Goal] s)
+      fun pf x = return (make [#Proof] (s, x))
+      fun mkGoal hyps concl = Proof.Rec (make [#Goal] (mkSequent hyps concl))
+  in x <- match t
+   { LExact     = fn i =>
+      case (nth s.Hyps i, s.Con) of
+        (Some (Prop x), Prop x') =>
+          if x <> x' then err <xml>Not axiomatically valid</xml>
+                     else pf (make [#LExact] i)
+      | (_, _) => err <xml>Not an atomic proposition</xml>
+   , LConj      = fn (i,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Conj (x,y)) :: post) =>
+          pf (make [#LConj] (i, mkGoal (append pre (x :: y :: post)) s.Con))
+      | _ => err <xml>Not a conjunction</xml>
+   , LDisj      = fn _ => err <xml>Unimplemented</xml>
+   , LImp       = fn _ => err <xml>Unimplemented</xml>
+   , LIff       = fn _ => err <xml>Unimplemented</xml>
+   , LBot       = fn _ => err <xml>Unimplemented</xml>
+   , LTop       = fn _ => err <xml>Unimplemented</xml>
+   , LNot       = fn _ => err <xml>Unimplemented</xml>
+   , LContract  = fn _ => err <xml>Unimplemented</xml>
+   , LWeaken    = fn _ => err <xml>Unimplemented</xml>
+   , RExact     = fn _ => err <xml>Unimplemented</xml>
+   , RConj      = fn _ => err <xml>Unimplemented</xml>
+   , RDisj      = fn _ => err <xml>Unimplemented</xml>
+   , RImp       = fn _ => err <xml>Unimplemented</xml>
+   , RIff       = fn _ => err <xml>Unimplemented</xml>
+   , RTop       = fn _ => err <xml>Unimplemented</xml>
+   , RNot       = fn _ => err <xml>Unimplemented</xml>
+   };
+   return (Proof.Rec x)
+   end
 
 (* Renders a proof fragment, and is responsible for wiring up the
    proof callbacks for subsegments. If the proof shifts from one
