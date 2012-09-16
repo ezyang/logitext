@@ -248,7 +248,8 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
 fun refine showError (s : sequent) (t : tactic int) : transaction proof =
   let fun err e = showError e; return (make [#Goal] s)
       fun pf x = return (make [#Proof] (s, x))
-      fun mkGoal hyps concl = Proof.Rec (make [#Goal] (mkSequent hyps concl))
+      fun mkGoal' hyps concl = Proof.Rec (make [#Goal] (mkSequent hyps concl))
+      fun mkGoal hyps = mkGoal' hyps s.Con
   in x <- match t
    { LExact     = fn i =>
       case (nth s.Hyps i, s.Con) of
@@ -259,11 +260,24 @@ fun refine showError (s : sequent) (t : tactic int) : transaction proof =
    , LConj      = fn (i,_) =>
       case splitAt i s.Hyps of
         (pre, (Conj (x,y)) :: post) =>
-          pf (make [#LConj] (i, mkGoal (append pre (x :: y :: post)) s.Con))
+          pf (make [#LConj] (i, mkGoal (append pre (x :: y :: post))))
       | _ => err <xml>Not a conjunction</xml>
-   , LDisj      = fn _ => err <xml>Unimplemented</xml>
-   , LImp       = fn _ => err <xml>Unimplemented</xml>
-   , LIff       = fn _ => err <xml>Unimplemented</xml>
+   , LDisj      = fn (i,_,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Disj (x,y)) :: post) =>
+          pf (make [#LDisj] (i, mkGoal (append pre (x :: post)), mkGoal (append pre (y :: post))))
+      | _ => err <xml>Not a disjunction</xml>
+   , LImp       = fn (i,_,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Imp (x,y)) :: post) =>
+          (* XXX is this too conservative?! *)
+          pf (make [#LImp] (i, mkGoal' s.Hyps x, mkGoal (y :: append pre (Imp (x,y) :: post))))
+      | _ => err <xml>Not an implication</xml>
+   , LIff       = fn (i,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Iff (x,y)) :: post) =>
+          pf (make [#LIff] (i, mkGoal (y :: append pre (Imp (x,y) :: Imp (y,x) :: post))))
+      | _ => err <xml>Not an iff</xml>
    , LBot       = fn _ => err <xml>Unimplemented</xml>
    , LTop       = fn _ => err <xml>Unimplemented</xml>
    , LNot       = fn _ => err <xml>Unimplemented</xml>
