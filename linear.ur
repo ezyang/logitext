@@ -216,26 +216,45 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
     end
   end
 
-fun refine showError (s : sequent) (t : tactic int) : transaction proof = error <xml>oops</xml>
+fun refine showError (s : sequent) (t : tactic int) : transaction proof = match t
+   { LExact     = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LConj      = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LDisj      = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LImp       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LIff       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LBot       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LTop       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LNot       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LContract  = fn _ => return (Proof.Rec (make [#Goal] s))
+   , LWeaken    = fn _ => return (Proof.Rec (make [#Goal] s))
+   , RExact     = fn _ => return (Proof.Rec (make [#Goal] s))
+   , RConj      = fn _ => return (Proof.Rec (make [#Goal] s))
+   , RDisj      = fn _ => return (Proof.Rec (make [#Goal] s))
+   , RImp       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , RIff       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , RTop       = fn _ => return (Proof.Rec (make [#Goal] s))
+   , RNot       = fn _ => return (Proof.Rec (make [#Goal] s))
+   }
 
 (* Renders a proof fragment, and is responsible for wiring up the
    proof callbacks for subsegments. If the proof shifts from one
    type to another, we'll invoke our parent to calculate the
    appropriate change. *)
-fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
+fun renderProof showError topcall (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
        sequent <- renderSequent showError h s;
        return <xml><table><tr><td>{sequent}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
    Pending = fn (s, t) =>
        (* better not return a pending! XXX can type system that *)
-       bind (refine showError s t) (renderProof showError h),
+       bind (refine showError s t) (renderProof showError topcall h),
    Proof = fn (s, t) =>
        (* do not call h, do not pass go... *)
        sequent <- renderSequent showError h s;
        let fun render t : transaction xbody =
                 childSource <- source <xml/>;
                 let fun childHandler x =
-                    r <- renderProof showError childHandler x;
+                    topcall;
+                    r <- renderProof showError topcall childHandler x;
                     set childSource r
                 in
                 childHandler t;
@@ -274,28 +293,24 @@ val head = <xml>
     <link rel="stylesheet" type="text/css" href="http://localhost/logitext/tipsy.css" />
     </xml>
 
-fun handleResultProof handler v proofStatus err (r : proof) =
-    let val clearError = set err <xml/>
-        fun showError (e : xbody) =
+fun mkWorkspaceRaw showErrors (pf : proof) =
+  v <- source <xml/>;
+  err <- source <xml/>;
+  proofStatus <- source proofIsIncomplete; (* should actually be a datatype *)
+  bamf <- source <xml/>;
+  let val clearError = set err <xml/>
+      fun showError (e : xbody) =
         nid <- fresh;
         set err (activate <xml>
           <div class={errorStyle} id={nid}>
             {e} <button onclick={fn _ => clearError} value="Dismiss" />
           </div>
         </xml> (Js.tipInner nid))
-    in clearError;
-       bind (renderProof showError handler r) (set v);
-       set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
-    end
-
-fun mkWorkspaceRaw showErrors pf =
-  v <- source <xml/>;
-  err <- source <xml/>;
-  proofStatus <- source proofIsIncomplete; (* should actually be a datatype *)
-  bamf <- source <xml/>;
-  let fun handler x =
-    set proofStatus proofIsPending;
-    set bamf (activeCode Js.clearTooltips)
+      val topcall =
+        clearError;
+        set bamf (activeCode Js.clearTooltips)
+      fun handler pf =
+        bind (renderProof showError topcall handler pf) (set v)
   in return <xml>
           <div class={working}>
             <dyn signal={signal bamf} />
@@ -306,7 +321,7 @@ fun mkWorkspaceRaw showErrors pf =
             </div>
           </div>
           {if showErrors then <xml><dyn signal={signal err}/></xml> else <xml/>}
-          {activeCode (handleResultProof handler v proofStatus err pf)}
+          {activeCode (handler pf)}
     </xml>
   end
 
