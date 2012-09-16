@@ -29,8 +29,8 @@ h2 { font-family:sans-serif; font-size:1.3em; border-bottom:1px solid #BBB; }
 .offsetInner {font-size:0.7em; text-align:left; }
 .offsetBox input {border:1px solid #999; background:#FFF;}
 
-.error {margin-top:-0.5em; border:1px solid #900; padding:0.4em 2em; background: #F99; }
-.error input {border:0; background:transparent; text-decoration:underline; color:#900; cursor:pointer;}
+.error, .errorStyle {margin-top:-0.5em; border:1px solid #900; padding:0.4em 2em; background: #F99; }
+.error input, .errorStyle input {border:0; background:transparent; text-decoration:underline; color:#900; cursor:pointer;}
 
 .rules {margin:1em auto;}
 .centerTable {margin:1em auto;}

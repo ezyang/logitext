@@ -39,12 +39,7 @@ import Coq (CoqTerm(..))
 import Ltac
 import CoqTop
 import JSONGeneric
-
--- A EndUserFailure corresponds to user error; anything other exceptions
--- are our fault
-data EndUserFailure = UpdateFailure | ParseFailure
-    deriving (Typeable, Show, Data)
-instance Exception EndUserFailure
+import Common
 
 errorModule :: String -> a
 errorModule s = error ("ClassicalFOL." ++ s)

@@ -2,6 +2,10 @@ include haskell.h
 ffi haskell
 link haskell.c
 link ClassicalFOLFFI.hs
+link LinearFFI.hs
+link CommonFFI.hs
 effectful Haskell.initClassicalFOL
+effectful Haskell.initVanilla
 benignEffectful Haskell.startClassicalFOL
+benignEffectful Haskell.parseLinear
 linker ghc -no-hs-main -threaded

@@ -14,7 +14,7 @@ style relMark
 style offsetBox
 style working
 style page
-style error
+style errorStyle
 style turnstile
 style centerTable
 style offsetInner
@@ -23,15 +23,16 @@ style primaryConnective
 
 open Json
 
+task initialize = Haskell.initVanilla
+
 val declareCase = @@Variant.declareCase
 val typeCase = @@Variant.typeCase
-
-task initialize = Haskell.init
 
 fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
 fun activate x m = <xml>{x}{activeCode m}</xml>
 
-con logic' a = [Conj = a * a,
+con logic' a = [Prop = string,
+                Conj = a * a,
                 Disj = a * a,
                 Imp = a * a,
                 Iff = a * a,
@@ -42,7 +43,7 @@ structure Logic = Json.Recursive(struct
   con t a = variant (logic' a)
   fun json_t [a] (_ : json a) : json (t a) =
     let val json_compound : json (a * a) = json_record ("1", "2")
-    in json_variant {Conj = "Conj", Disj = "Disj", Imp = "Imp", Iff = "Iff",
+    in json_variant {Prop = "Prop", Conj = "Conj", Disj = "Disj", Imp = "Imp", Iff = "Iff",
           Not = "Not", Top = "Top", Bot = "Bot"}
     end
 end)
@@ -52,7 +53,8 @@ fun renderParen (b : bool) (r : xbody) : xbody = if b then <xml>({r})</xml> else
 fun renderLogic top p ((Logic.Rec r) : logic) : xbody =
   let fun symbol s = if top then <xml><span class={primaryConnective}>{[s]}</span></xml> else <xml>{[s]}</xml>
   in match r
-  {Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic False 3 a} {symbol "∧"} {renderLogic False 3 b}</xml>,
+  {Prop = fn x => <xml>{[x]}</xml>,
+   Conj = fn (a, b) => renderParen (p>3) <xml>{renderLogic False 3 a} {symbol "∧"} {renderLogic False 3 b}</xml>,
    Disj = fn (a, b) => renderParen (p>2) <xml>{renderLogic False 2 a} {symbol "∨"} {renderLogic False 2 b}</xml>,
    Imp = fn (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "→"} {renderLogic False 1 b}</xml>,
    Iff = fn (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "↔"} {renderLogic False 2 b}</xml>,
@@ -143,6 +145,7 @@ con result a = variant [EndUserFailure = end_user_failure, InternalFailure = str
 fun json_result [a] (_ : json a) : json (result a) =
     json_variant {EndUserFailure = "EndUserFailure", InternalFailure = "InternalFailure", Success = "Success"}
 
+(* vestigial *)
 structure Proof = Json.Recursive(struct
   con t a = variant [Goal = sequent,
                      Pending = sequent * tactic int,
@@ -174,12 +177,16 @@ fun proofComplete (Proof.Rec p) : bool =
 (* XXX genericize me *)
 fun unrec (Logic.Rec r) = r
 
-fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : transaction xbody =
+(* h is a callback to the proof renderer, which instructs the proof renderer
+to replace the Goal with a Pending proof object.  A proof renderer will
+take a Pending proof object and attempt to convert it into a Proof object. *)
+fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transaction unit) (s : sequent) : transaction xbody =
     let fun makePending (x : tactic int) : transaction unit = h (Proof.Rec (make [#Pending] (s, x))) in
     left <- List.mapXiM (fn i (Logic.Rec x) =>
               nid <- fresh;
               let val bod = <xml><li id={nid}><span class={junct} onclick={fn _ =>
                   match x {
+                    Prop   = fn _ => makePending (make [#LExact] i),
                     Conj   = fn _ => makePending (make [#LConj] (i, 0)),
                     Disj   = fn _ => makePending (make [#LDisj] (i, 0, 1)),
                     Imp    = fn _ => makePending (make [#LImp] (i, 0, 1)),
@@ -193,6 +200,7 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
               end
             ) s.Hyps;
     let val right = <xml><span class={junct} onclick={fn _ => match (unrec s.Con) {
+            Prop   = fn _ => makePending (make [#RExact] ()),
             Conj   = fn _ => makePending (make [#RConj] (0, 1)),
             Disj   = fn _ => makePending (make [#RDisj] 0),
             Imp    = fn _ => makePending (make [#RImp] 0),
@@ -204,37 +212,47 @@ fun renderSequent showError (h : proof -> transaction unit) (s : sequent) : tran
         {renderLogic True 0 s.Con}</span></xml>
     in
     nid <- fresh;
-    return <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={fn _ => h (Proof.Rec (make [#Goal] s))}>⊢</span> <ul class={commaList}>{right}</ul></div></xml>
+    return <xml><div id={nid}><ul class={commaList}>{left}</ul> <span class={turnstile} title="reset" onclick={fn _ => h (Proof.Rec (make [#Goal] s))}>⊢</span> {right}</div></xml>
     end
   end
 
+fun refine showError (s : sequent) (t : tactic int) : transaction proof = error <xml>oops</xml>
+
+(* Renders a proof fragment, and is responsible for wiring up the
+   proof callbacks for subsegments. If the proof shifts from one
+   type to another, we'll invoke our parent to calculate the
+   appropriate change. *)
 fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof) : transaction xbody = match r
   {Goal = fn s =>
-       (* XXX It would be neat if mouse over caused this to change to show what the result would be, but a little difficult due to the necessity of a redraw *)
        sequent <- renderSequent showError h s;
        return <xml><table><tr><td>{sequent}</td><td class={tagBox}>&nbsp;</td></tr></table></xml>,
-   Pending = fn (s, t) => return <xml>...</xml>,
+   Pending = fn (s, t) =>
+       (* better not return a pending! XXX can type system that *)
+       bind (refine showError s t) (renderProof showError h),
    Proof = fn (s, t) =>
+       (* do not call h, do not pass go... *)
        sequent <- renderSequent showError h s;
-       let fun render f t : transaction xbody =
-                sib <- renderProof showError (fn x => h (Proof.Rec (make [#Proof] (s, f x)))) t;
-                return <xml><div class={sibling}>{sib}</div></xml>
+       let fun render t : transaction xbody =
+                childSource <- source <xml/>;
+                let fun childHandler x =
+                    r <- renderProof showError childHandler x;
+                    set childSource r
+                in
+                childHandler t;
+                return <xml><div class={sibling}><dyn signal={signal childSource} /></div></xml>
+                end
            val empty   = declareCase (fn _ (_ : int) =>
                 return <xml/> : transaction xbody)
            val emptyR  = declareCase (fn _ () =>
                 return <xml/> : transaction xbody)
-           val single  = declareCase (fn f (n : int, a : proof) =>
-                render (fn x => f (n, x)) a : transaction xbody)
-           val singleR = declareCase (fn f (a : proof) =>
-                render f a : transaction xbody)
-           val double  = declareCase (fn f (n : int, a : proof, b : proof) =>
-                Monad.liftM2 join
-                    (render (fn x => f (n, x, b)) a)
-                    (render (fn x => f (n, a, x)) b) : transaction xbody)
-           val doubleR = declareCase (fn f (a : proof, b : proof) =>
-                Monad.liftM2 join
-                    (render (fn x => f (x, b)) a)
-                    (render (fn x => f (a, x)) b) : transaction xbody)
+           val single  = declareCase (fn _ (_ : int, a : proof) =>
+                render a : transaction xbody)
+           val singleR = declareCase (fn _ (a : proof) =>
+                render a : transaction xbody)
+           val double  = declareCase (fn _ (n : int, a : proof, b : proof) =>
+                Monad.liftM2 join (render a) (render b) : transaction xbody)
+           val doubleR = declareCase (fn _ (a : proof, b : proof) =>
+                Monad.liftM2 join (render a) (render b) : transaction xbody)
        in
        top <- typeCase t;
        nid <- fresh;
@@ -251,29 +269,23 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
        end
     }
 
-fun zapRefine (x : proof) : transaction string  = return (Haskell.refine (toJson x))
-
 val head = <xml>
     <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
     <link rel="stylesheet" type="text/css" href="http://localhost/logitext/tipsy.css" />
     </xml>
 
-fun handleResultProof handler v proofStatus err (z : string) =
+fun handleResultProof handler v proofStatus err (r : proof) =
     let val clearError = set err <xml/>
         fun showError (e : xbody) =
-            nid <- fresh;
-            set err (activate <xml><div class={error} id={nid}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
-    in match (fromJson z : result proof)
-        { Success = fn r => clearError;
-                            bind (renderProof showError handler r) (set v);
-                            set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
-        , EndUserFailure = fn e => set proofStatus proofIsIncomplete; match e
-           (* XXX makes assumption about what update failures are... *)
-            { UpdateFailure = fn () => showError <xml>This is not axiomatically true.</xml>
-            , ParseFailure = fn () => showError <xml>Parse error.</xml>
-            }
-        , InternalFailure = fn s => showError <xml>{[s]}</xml>
-        }
+        nid <- fresh;
+        set err (activate <xml>
+          <div class={errorStyle} id={nid}>
+            {e} <button onclick={fn _ => clearError} value="Dismiss" />
+          </div>
+        </xml> (Js.tipInner nid))
+    in clearError;
+       bind (renderProof showError handler r) (set v);
+       set proofStatus (if proofComplete r then proofIsDone else proofIsIncomplete)
     end
 
 fun mkWorkspaceRaw showErrors pf =
@@ -283,8 +295,7 @@ fun mkWorkspaceRaw showErrors pf =
   bamf <- source <xml/>;
   let fun handler x =
     set proofStatus proofIsPending;
-    set bamf (activeCode Js.clearTooltips);
-    bind (rpc (zapRefine x)) (handleResultProof handler v proofStatus err)
+    set bamf (activeCode Js.clearTooltips)
   in return <xml>
           <div class={working}>
             <dyn signal={signal bamf} />
@@ -300,8 +311,15 @@ fun mkWorkspaceRaw showErrors pf =
   end
 
 fun workspace goal =
-  let val parsedGoal = Haskell.start goal
-  in <xml><active code={mkWorkspaceRaw True parsedGoal} /></xml>
+  let val parsedGoal = Haskell.parseLinear goal
+  in match (fromJson parsedGoal : result sequent)
+    { Success = fn r => <xml><active code={mkWorkspaceRaw True (Proof.Rec (make [#Goal] r))} /></xml>
+    , EndUserFailure = fn e => match e
+        { UpdateFailure = fn () => <xml><div class={errorStyle}>Impossible! Report this as a bug.</div></xml>
+        , ParseFailure = fn () => <xml><div class={errorStyle}>Expression did not parse.</div></xml>
+        }
+    , InternalFailure = fn s => <xml><div class={errorStyle}>{[s]}</div></xml>
+    }
   end
 
 fun proving goal =

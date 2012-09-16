@@ -1,6 +1,8 @@
 #include "urweb/urweb.h"
 #include "HsFFI.h"
 #include "ClassicalFOLFFI_stub.h"
+#include "LinearFFI_stub.h"
+#include "CommonFFI_stub.h"
 #include <stdio.h>
 
 void initGHC() {
@@ -17,4 +19,8 @@ void initGHC() {
 uw_Basis_unit uw_Haskell_initClassicalFOL(uw_context ctx) {
     initGHC();
     _uw_Haskell_initClassicalFOL();
+}
+
+uw_Basis_unit uw_Haskell_initVanilla(uw_context ctx) {
+    initGHC();
 }
