@@ -112,7 +112,7 @@ con tactic' a = [LExact = int,
                  LWeaken = int * a,
                  RExact = unit,
                  RConj = a * a,
-                 RDisj = a,
+                 RDisj = a, (* XXX fixme *)
                  RImp = a,
                  RIff = a * a,
                  RTop = unit,
@@ -229,7 +229,8 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
               end
             ) s.Hyps;
     let val right = <xml><span class={junct} onclick={fn _ => case s.Con of
-            Prop _ => makePending (make [#RExact] ())
+            (* XXX see something, say something... *)
+            Prop _ => return () (* makePending (make [#RExact] ()) *)
           | Conj _ => makePending (make [#RConj] (0, 1))
           | Disj _ => makePending (make [#RDisj] 0)
           | Imp  _ => makePending (make [#RImp] 0)
@@ -276,20 +277,50 @@ fun refine showError (s : sequent) (t : tactic int) : transaction proof =
    , LIff       = fn (i,_) =>
       case splitAt i s.Hyps of
         (pre, (Iff (x,y)) :: post) =>
-          pf (make [#LIff] (i, mkGoal (y :: append pre (Imp (x,y) :: Imp (y,x) :: post))))
+          pf (make [#LIff] (i, mkGoal (append pre (Imp (x,y) :: Imp (y,x) :: post))))
       | _ => err <xml>Not an iff</xml>
-   , LBot       = fn _ => err <xml>Unimplemented</xml>
-   , LTop       = fn _ => err <xml>Unimplemented</xml>
-   , LNot       = fn _ => err <xml>Unimplemented</xml>
+   , LBot       = fn i =>
+      case nth s.Hyps i of
+        Some Bot => pf (make [#LBot] i)
+      | _ => err <xml>Not a bottom</xml>
+   , LTop       = fn (i,_) =>
+      case splitAt i s.Hyps of
+        (pre, Top :: post) =>
+          pf (make [#LTop] (i, mkGoal (append pre post)))
+      | _ => err <xml>Not a top</xml>
+   , LNot       = fn (i,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Not x) :: post) =>
+          (* XXX Another lack of erasure... *)
+          pf (make [#LNot] (i, mkGoal' s.Hyps x))
+      | _ => err <xml>Not a negation</xml>
    , LContract  = fn _ => err <xml>Unimplemented</xml>
    , LWeaken    = fn _ => err <xml>Unimplemented</xml>
-   , RExact     = fn _ => err <xml>Unimplemented</xml>
-   , RConj      = fn _ => err <xml>Unimplemented</xml>
-   , RDisj      = fn _ => err <xml>Unimplemented</xml>
-   , RImp       = fn _ => err <xml>Unimplemented</xml>
-   , RIff       = fn _ => err <xml>Unimplemented</xml>
-   , RTop       = fn _ => err <xml>Unimplemented</xml>
-   , RNot       = fn _ => err <xml>Unimplemented</xml>
+   , RExact     = fn _ => err <xml>Unimplemented</xml> (* XXX lazy bastard... *)
+   , RConj      = fn _ =>
+      case s.Con of
+        Conj (x,y) =>
+          pf (make [#RConj] (mkGoal' s.Hyps x, mkGoal' s.Hyps y))
+      | _ => err <xml>Not a conjunction</xml>
+   , RDisj      = fn _ => err <xml>Unimplemented</xml> (* XXX blah... *)
+   , RImp       = fn _ =>
+      case s.Con of
+        Imp (x,y) =>
+          pf (make [#RImp] (mkGoal' (x :: s.Hyps) y))
+      | _ => err <xml>Not an implication</xml>
+   , RIff       = fn _ =>
+      case s.Con of
+        Iff (x,y) =>
+          pf (make [#RIff] (mkGoal' s.Hyps (Imp (x,y)), mkGoal' s.Hyps (Imp (y,x))))
+      | _ => err <xml>Not an iff</xml>
+   , RTop       = fn _ =>
+      case s.Con of
+        Top => pf (make [#RTop] ())
+      | _ => error <xml>Not a top</xml>
+   , RNot       = fn _ =>
+      case s.Con of
+        Not x => pf (make [#RNot] (mkGoal' (x :: s.Hyps) Bot))
+      | _ => error <xml>Not a negation</xml>
    };
    return (Proof.Rec x)
    end
