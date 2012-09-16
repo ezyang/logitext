@@ -8,6 +8,7 @@ style tagBox
 style tag
 style sibling
 style junct
+style expand
 style viewport
 style commaList
 style relMark
@@ -92,9 +93,9 @@ fun renderLogic top p (r : logic) : xbody =
    | Bot => <xml>⊥</xml>
   end
 
-type sequent = { Persistent : list logic, Ephemeral : list logic, Goal : logic }
-val json_sequent : json sequent = json_record {Persistent = "persistent", Ephemeral = "ephemeral", Goal = "goal"}
-fun mkSequent per eph goal = { Persistent = per, Ephemeral = eph, Goal = goal }
+type sequent = { Hyps : list logic, Goal : logic }
+val json_sequent : json sequent = json_record {Hyps = "hyps", Goal = "goal"}
+fun mkSequent hyps goal = { Hyps = hyps, Goal = goal }
 
 con tactic' a = [LExact = int,
                  LConj = int * a,
@@ -139,25 +140,25 @@ fun tacticDescription [a] (t : tactic a) : string = match t
    , RNot       = fn _ => "negation right"
    }
 
-fun tacticRenderName [a] (t : tactic a) : string = match t
-   { LExact     = fn _ => ""
-   , LConj      = fn _ => "(∧l)"
-   , LDisj      = fn _ => "(∨l)"
-   , LImp       = fn _ => "(→l)"
-   , LIff       = fn _ => "(↔l)"
-   , LBot       = fn _ => ""
-   , LTop       = fn _ => ""
-   , LNot       = fn _ => "(¬l)"
-   , LContract  = fn _ => ""
-   , LWeaken    = fn _ => ""
-   , RExact     = fn _ => ""
-   , RConj      = fn _ => "(∧r)"
-   , RDisjL     = fn _ => "(∨r1)"
-   , RDisjR     = fn _ => "(∨r2)"
-   , RImp       = fn _ => "(→r)"
-   , RIff       = fn _ => "(↔r)"
-   , RTop       = fn _ => ""
-   , RNot       = fn _ => "(¬r)"
+fun tacticRenderName [a] (t : tactic a) : xbody = match t
+   { LExact     = fn _ => <xml/>
+   , LConj      = fn _ => <xml>(∧l)</xml>
+   , LDisj      = fn _ => <xml>(∨l)</xml>
+   , LImp       = fn _ => <xml>(→l)</xml>
+   , LIff       = fn _ => <xml>(↔l)</xml>
+   , LBot       = fn _ => <xml></xml>
+   , LTop       = fn _ => <xml></xml>
+   , LNot       = fn _ => <xml>(¬l)</xml>
+   , LContract  = fn _ => <xml></xml>
+   , LWeaken    = fn _ => <xml></xml>
+   , RExact     = fn _ => <xml></xml>
+   , RConj      = fn _ => <xml>(∧r)</xml>
+   , RDisjL     = fn _ => <xml>(∨r<sub>1</sub>)</xml>
+   , RDisjR     = fn _ => <xml>(∨r<sub>2</sub>)</xml>
+   , RImp       = fn _ => <xml>(→r)</xml>
+   , RIff       = fn _ => <xml>(↔r)</xml>
+   , RTop       = fn _ => <xml></xml>
+   , RNot       = fn _ => <xml>(¬r)</xml>
    }
 
 con end_user_failure = variant [UpdateFailure = unit, ParseFailure = unit]
@@ -201,34 +202,25 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
                   | Bot    => makePending (make [#LBot] i)
                     }>{renderLogic True 0 x}</span></li></xml>
               in return bod
+              (* {case x of
+                      Imp _ => <xml><sup title="Contract" class={expand} onclick={fn _ =>
+                                  makePending (make [#LContract] (i, 0))
+                                }>#</sup></xml>
+                      | _ => <xml/>
+                    }
+                    XXX nontrivial proof obligation: can we avoid ever contracting?
+                    *)
               end
-            ) s.Persistent;
-    ephemeral <- List.mapXiM (fn i x =>
-              nid <- fresh;
-              let val bod = <xml><li id={nid}><span class={junct} onclick={fn _ =>
-                  case x of
-                    Prop _ => makePending (make [#LExact] i)
-                  | Conj _ => makePending (make [#LConj] (i, 0))
-                  | Disj _ => makePending (make [#LDisj] (i, 0, 1))
-                  | Imp  _ => makePending (make [#LImp] (i, 0, 1))
-                  | Iff  _ => makePending (make [#LIff] (i, 0))
-                  | Not  _ => makePending (make [#LNot] (i, 0))
-                  | Top    => makePending (make [#LTop] (i, 0))
-                  | Bot    => makePending (make [#LBot] i)
-                    }>{renderLogic True 0 x}</span></li></xml>
-              in return bod
-              end
-            ) s.Persistent;
+            ) s.Hyps;
     let val right =
       case s.Goal of
-        Disj (x,y) => <xml><span class={junct}>
+        Disj (x,y) => <xml><span>
           <span class={primaryExpr} onclick={fn _ => makePending (make [#RDisjL] (0))}>{renderLogic False 2 x}</span> ∨
           <span class={primaryExpr} onclick={fn _ => makePending (make [#RDisjR] (0))}>{renderLogic False 2 y}</span>
           </span></xml>
       | _ =>
         <xml><span class={junct} onclick={fn _ => case s.Goal of
-            (* XXX see something, say something... *)
-            Prop _ => return () (* makePending (make [#RExact] ()) *)
+            Prop _ => makePending (make [#RExact] ())
           | Conj _ => makePending (make [#RConj] (0, 1))
           | Disj _ => error <xml>impossible</xml>
           | Imp  _ => makePending (make [#RImp] 0)
@@ -244,60 +236,69 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
     end
   end
 
-(* ephemeral?! *)
 fun refine showError (s : sequent) (t : tactic int) : transaction proof =
   let fun err e = showError e; return (Goal s)
       fun pf x = return (Proof (s, x))
-      fun xgGoal       concl = Goal (mkSequent s.Persistent s.Ephemeral concl)
-      fun xpgGoal hyps concl = Goal (mkSequent hyps s.Ephemeral concl)
-      fun xegGoal hyps concl = Goal (mkSequent s.Persistent hyps concl)
-      fun xpGoal  hyps       = Goal (mkSequent hyps s.Ephemeral s.Goal)
+      fun xgGoal       concl = Goal (mkSequent s.Hyps concl)
+      fun xpgGoal hyps concl = Goal (mkSequent hyps concl)
+      fun xpGoal  hyps       = Goal (mkSequent hyps s.Goal)
   in match t
    { LExact     = fn i =>
-      case (nth s.Persistent i, s.Goal) of
+      case (nth s.Hyps i, s.Goal) of
         (Some (Prop x), Prop x') =>
           if x <> x' then err <xml>Not axiomatically valid</xml>
                      else pf (make [#LExact] i)
       | (_, _) => err <xml>Not an atomic proposition</xml>
    , LConj      = fn (i,_) =>
-      case splitAt i s.Persistent of
+      case splitAt i s.Hyps of
         (pre, (Conj (x,y)) :: post) =>
           pf (make [#LConj] (i, xpGoal (append pre (x :: y :: post))))
       | _ => err <xml>Not a conjunction</xml>
    , LDisj      = fn (i,_,_) =>
-      case splitAt i s.Persistent of
+      case splitAt i s.Hyps of
         (pre, (Disj (x,y)) :: post) =>
           pf (make [#LDisj] (i, xpGoal (append pre (x :: post)), xpGoal (append pre (y :: post))))
       | _ => err <xml>Not a disjunction</xml>
    , LImp       = fn (i,_,_) =>
-      case splitAt i s.Persistent of
+      case splitAt i s.Hyps of
         (pre, (Imp (x,y)) :: post) =>
           (* pf (make [#LImp] (i, xgGoal x, xpGoal (y :: append pre (Imp (x,y) :: post)))) *)
-          pf (make [#LImp] (i, xpgGoal (append pre post) x, xpGoal (y :: append pre post)))
+          pf (make [#LImp] (i, xpgGoal (append pre post) x, xpGoal (append pre (y :: post))))
       | _ => err <xml>Not an implication</xml>
    , LIff       = fn (i,_) =>
-      case splitAt i s.Persistent of
+      case splitAt i s.Hyps of
         (pre, (Iff (x,y)) :: post) =>
           pf (make [#LIff] (i, xpGoal (append pre (Imp (x,y) :: Imp (y,x) :: post))))
       | _ => err <xml>Not an iff</xml>
    , LBot       = fn i =>
-      case nth s.Persistent i of
+      case nth s.Hyps i of
         Some Bot => pf (make [#LBot] i)
       | _ => err <xml>Not a bottom</xml>
    , LTop       = fn (i,_) =>
-      case splitAt i s.Persistent of
+      case splitAt i s.Hyps of
         (pre, Top :: post) =>
           pf (make [#LTop] (i, xpGoal (append pre post)))
       | _ => err <xml>Not a top</xml>
    , LNot       = fn (i,_) =>
-      case splitAt i s.Persistent of
+      case splitAt i s.Hyps of
         (pre, (Not x) :: post) =>
           (* pf (make [#LNot] (i, xgGoal x)) *)
           pf (make [#LNot] (i, xpgGoal (append pre post) x))
       | _ => err <xml>Not a negation</xml>
-   , LContract  = fn _ => err <xml>Unimplemented</xml>
+   , LContract  = fn (i,_) =>
+      case splitAt i s.Hyps of
+        (pre, x :: post) =>
+          pf (make [#LContract] (i, xpGoal (append pre (x :: x :: post))))
+      | _ => err <xml>Out of bounds</xml>
    , LWeaken    = fn _ => err <xml>Unimplemented</xml>
-   , RExact     = fn _ => err <xml>Unimplemented</xml> (* XXX lazy bastard... *)
+   , RExact     = fn _ =>
+      case s.Goal of
+        Prop x => if foldl (fn c z => z || (case c of
+                                Prop x' => x = x'
+                              | _ => False)) False s.Hyps
+                    then pf (make [#RExact] ())
+                    else err <xml>Not axiomatically true</xml>
+      | _ => err <xml>Not an atomic proposition</xml>
    , RConj      = fn _ =>
       case s.Goal of
         Conj (x,y) =>
@@ -316,7 +317,7 @@ fun refine showError (s : sequent) (t : tactic int) : transaction proof =
    , RImp       = fn _ =>
       case s.Goal of
         Imp (x,y) =>
-          pf (make [#RImp] (xpgGoal (x :: s.Persistent) y))
+          pf (make [#RImp] (xpgGoal (snoc s.Hyps x) y))
       | _ => err <xml>Not an implication</xml>
    , RIff       = fn _ =>
       case s.Goal of
@@ -329,7 +330,7 @@ fun refine showError (s : sequent) (t : tactic int) : transaction proof =
       | _ => error <xml>Not a top</xml>
    , RNot       = fn _ =>
       case s.Goal of
-        Not x => pf (make [#RNot] (xpgGoal (x :: s.Persistent) Bot))
+        Not x => pf (make [#RNot] (xpgGoal (snoc s.Hyps x) Bot))
       | _ => error <xml>Not a negation</xml>
    }
    end
@@ -379,7 +380,7 @@ fun renderProof showError topcall (h : proof -> transaction unit) (r : proof) : 
           <tr>
             <td class={inference}>{sequent}</td>
             <td class={tagBox}>
-                <div class={tag}>{activate <xml><span title={tacticDescription t} id={nid}>{[tacticRenderName t]}</span></xml> (Js.tip nid)}</div>
+                <div class={tag}>{activate <xml><span title={tacticDescription t} id={nid}>{tacticRenderName t}</span></xml> (Js.tip nid)}</div>
             </td>
           </tr>
         </table></xml>
@@ -418,7 +419,7 @@ fun mkWorkspaceRaw showErrors (pf : proof) =
   end
 
 fun workspace goal =
-  let val parsedGoal = Haskell.parseLinear goal
+  let val parsedGoal = Haskell.parseIntuitionistic goal
   in match (fromJson parsedGoal : result sequent)
     { Success = fn r => <xml><active code={mkWorkspaceRaw True (Goal r)} /></xml>
     , EndUserFailure = fn e => match e
@@ -450,20 +451,26 @@ and main () : transaction page =
   in
   return <xml>
       <head>
-        <title>Logitext/Linear</title>
+        <title>Logitext/Intuitionistic</title>
           {head}
       </head>
       <body>
       <div class={page}>
+        <p>This is a variant of Logitext for <i>propositional intuitionistic logic</i>.
+        In fact, it is contraction-free, so there exists a decision
+        procedure for statements in this calculus.  This implementation is not
+        backed by Coq, so there may be bugs; please let me know if you find any.</p>
         <form>
           <textbox{#Goal}/><submit action={provingTrampoline} value="Prove"/>
         </form>
-        <p>Here are some examples:</p>
+        <p>Here are some examples. (Warning: some of these are impossible to prove in
+        intuitionistic logic!)</p>
         <ul>
-          {tryProof "((A -> B) -> A) -> A"}
-          {tryProof "A \/ ~A"}
+          {tryProof "(A -> B) \/ (A -> C) |- A -> (B \/ C)"}
+          {tryProof "A -> (B \/ C) |- (A -> B) \/ (A -> C)"}
+          {tryProof "((A -> (B -> R) -> R) -> (A -> R) -> R) -> (A -> R) -> R"}
         </ul>
-        <p>Logitext/Linear is case-sensitive: capitalized identifiers represent
+        <p>Logitext/Intuitionistic is case-sensitive: capitalized identifiers represent
         propositions.</p>
         </div>
       </body>

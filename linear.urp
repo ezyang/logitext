@@ -9,4 +9,5 @@ clientOnly Linear.renderSequent
 $/option
 $/list
 $/monad
+common
 linear

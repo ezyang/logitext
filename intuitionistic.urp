@@ -1,0 +1,13 @@
+allow url http://localhost/logitext/style.css
+rewrite all Intuitionistic/*
+library haskell
+library meta
+library js
+clientOnly Intuitionistic.renderProof
+clientOnly Intuitionistic.renderSequent
+
+$/option
+$/list
+$/monad
+common
+intuitionistic

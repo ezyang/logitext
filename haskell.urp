@@ -4,8 +4,10 @@ link haskell.c
 link ClassicalFOLFFI.hs
 link LinearFFI.hs
 link CommonFFI.hs
+link IntuitionisticFFI.hs
 effectful Haskell.initClassicalFOL
 effectful Haskell.initVanilla
 benignEffectful Haskell.startClassicalFOL
 benignEffectful Haskell.parseLinear
+benignEffectful Haskell.parseIntuitionistic
 linker ghc -no-hs-main -threaded

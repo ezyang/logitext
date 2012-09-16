@@ -3,6 +3,7 @@
 #include "ClassicalFOLFFI_stub.h"
 #include "LinearFFI_stub.h"
 #include "CommonFFI_stub.h"
+#include "IntuitionisticFFI_stub.h"
 #include <stdio.h>
 
 void initGHC() {
