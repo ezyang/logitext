@@ -1,27 +1,5 @@
-style proof
-style proofIsDone
-style proofIsIncomplete
-style proofIsPending
-style rules
-style inference
-style tagBox
-style tag
-style sibling
-style junct
-style viewport
-style commaList
-style relMark
-style offsetBox
-style working
-style page
-style error
-style turnstile
-style centerTable
-style offsetInner
-style green
-style primaryConnective
-
 open Json
+open Style
 
 val declareCase = @@Variant.declareCase
 val typeCase = @@Variant.typeCase
@@ -438,7 +416,7 @@ fun handleResultProof handler v proofStatus err (z : string) =
     let val clearError = set err <xml/>
         fun showError (e : xbody) =
             nid <- fresh;
-            set err (activate <xml><div class={error} id={nid}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
+            set err (activate <xml><div class={errorStyle} id={nid}>{e} <button onclick={fn _ => clearError} value="Dismiss" /></div></xml> (Js.tipInner nid))
     in match (fromJson z : result proof)
         { Success = fn r => clearError;
                             bind (renderProof showError handler r) (set v);
@@ -881,6 +859,8 @@ and main () =
         <p>Logitext is case-sensitive: capitalized identifiers represent
         propositions and predicates, while lower-case identifiers
         represent functions and elements of the universe.</p>
+        <p>If you don't like classical logic, check out the <a link={Intuitionistic.main ()}>intuitionistic
+        version!</a></p>
         </div>
       </body>
     </xml>

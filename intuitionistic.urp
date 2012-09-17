@@ -1,8 +1,8 @@
 allow url http://localhost/logitext/style.css
-rewrite all Intuitionistic/*
 library haskell
 library meta
 library js
+library style
 clientOnly Intuitionistic.renderProof
 clientOnly Intuitionistic.renderSequent
 

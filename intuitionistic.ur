@@ -1,27 +1,7 @@
-style proof
-style proofIsDone
-style proofIsIncomplete
-style proofIsPending
-style inference
-style tagBox
-style tag
-style sibling
-style junct
-style expand
-style commaList
-style working
-style page
-style errorStyle
-style turnstile
-style centerTable
-style offsetInner
-style green
-style primaryConnective
-style primaryExpr
-
 open Json
 open List
 open Common
+open Style
 
 task initialize = Haskell.initVanilla
 

@@ -10,10 +10,13 @@ rewrite all Logitext/*
 library haskell
 library meta
 library js
+library style
+library intuitionistic
 clientOnly Logitext.renderProof
 clientOnly Logitext.renderSequent
 
 $/option
 $/list
 $/monad
+common
 logitext
