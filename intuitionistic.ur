@@ -9,10 +9,12 @@ con logic' a = [Prop = string,
                 Conj = a * a,
                 Disj = a * a,
                 Imp = a * a,
+                Bot = unit,
+                (* erased from IR *)
                 Iff = a * a,
                 Not = a,
                 Top = unit,
-                Bot = unit]
+                ]
 structure Logic = Json.Recursive(struct
   con t a = variant (logic' a)
   fun json_t [a] (_ : json a) : json (t a) =
@@ -26,28 +28,27 @@ datatype logic = Prop of string
                | Conj of logic * logic
                | Disj of logic * logic
                | Imp of logic * logic
-               | Iff of logic * logic
-               | Not of logic
-               | Top
                | Bot
 fun convlogic ((Logic.Rec l) : rawlogic) = match l
   { Prop = Prop
   , Conj = fn (a,b) => Conj (convlogic a, convlogic b)
   , Disj = fn (a,b) => Disj (convlogic a, convlogic b)
   , Imp = fn (a,b) => Imp (convlogic a, convlogic b)
-  , Iff = fn (a,b) => Iff (convlogic a, convlogic b)
-  , Not = fn a => Not (convlogic a)
-  , Top = fn _ => Top
+  , Iff = fn (a,b) =>
+        let val a' = convlogic a
+            val b' = convlogic b
+        in Conj (Imp (a', b'), Imp (b', a'))
+        end
+  , Not = fn a => Imp (convlogic a, Bot)
+  , Top = fn _ => Imp (Bot, Bot) (* hack *)
   , Bot = fn _ => Bot
   }
+(* no decompiling kthxbai *)
 fun logicconv l = Logic.Rec (case l of
     Prop s => make [#Prop] s
   | Conj (a,b) => make [#Conj] (logicconv a, logicconv b)
   | Disj (a,b) => make [#Disj] (logicconv a, logicconv b)
   | Imp (a,b) => make [#Imp] (logicconv a, logicconv b)
-  | Iff (a,b) => make [#Iff] (logicconv a, logicconv b)
-  | Not a => make [#Not] (logicconv a)
-  | Top => make [#Top] ()
   | Bot => make [#Bot] ()
   )
 
@@ -62,10 +63,11 @@ fun renderLogic top p (r : logic) : xbody =
      Prop x => <xml>{[x]}</xml>
    | Conj (a, b) => renderParen (p>3) <xml>{renderLogic False 3 a} {symbol "∧"} {renderLogic False 3 b}</xml>
    | Disj (a, b) => renderParen (p>2) <xml>{renderLogic False 2 a} {symbol "∨"} {renderLogic False 2 b}</xml>
+   (* pretty-printing... (not implemented for iff, which requires an equality check...)
+      this might be confusing for users, since the UI isn't going to be totally consistent about this. *)
+   | Imp (Bot, Bot) => <xml>⊤</xml>
+   | Imp (a, Bot) => renderParen (p>4) <xml>{symbol "¬"}{renderLogic False 5 a}</xml>
    | Imp (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "→"} {renderLogic False 1 b}</xml>
-   | Iff (a, b) => renderParen (p>1) <xml>{renderLogic False 2 a} {symbol "↔"} {renderLogic False 2 b}</xml>
-   | Not a => renderParen (p>4) <xml>{symbol "¬"}{renderLogic False 5 a}</xml>
-   | Top => <xml>⊤</xml>
    | Bot => <xml>⊥</xml>
   end
 
@@ -76,21 +78,17 @@ fun mkSequent hyps goal = { Hyps = hyps, Goal = goal }
 con tactic' a = [LExact = int,
                  LConj = int * a,
                  LDisj = int * a * a,
-                 LImp = int * a * a,
-                 LIff = int * a,
+                 LImpProp = int * a,
+                 LImpConj = int * a,
+                 LImpDisj = int * a,
+                 LImpImp = int * a * a,
+                 LImpBot = int * a, (* erasure *)
                  LBot = int,
-                 LTop = int * a,
-                 LNot = int * a,
-                 LContract = int * a,
-                 LWeaken = int * a,
                  RExact = unit,
                  RConj = a * a,
                  RDisjL = a,
                  RDisjR = a,
                  RImp = a,
-                 RIff = a * a,
-                 RTop = unit,
-                 RNot = a,
                  ]
 con tactic a = variant (tactic' a)
 
@@ -99,42 +97,35 @@ fun tacticDescription [a] (t : tactic a) : string = match t
      LExact     = fn _ => ""
    , LConj      = fn _ => "conjunction left"
    , LDisj      = fn _ => "disjunction left"
-   , LImp       = fn _ => "implication left"
-   , LIff       = fn _ => "iff left"
-   , LBot       = fn _ => ""
-   , LTop       = fn _ => ""
-   , LNot       = fn _ => "negation left"
-   , LContract  = fn _ => ""
-   , LWeaken    = fn _ => ""
+   (* maybe distinguish these? *)
+   , LImpProp   = fn _ => "implication left"
+   , LImpConj   = fn _ => "implication left"
+   , LImpDisj   = fn _ => "implication left"
+   , LImpImp    = fn _ => "implication left"
+   , LImpBot    = fn _ => "implication left"
+   , LBot       = fn _ => "ex falso"
    , RExact     = fn _ => ""
    , RConj      = fn _ => "conjunction right"
    , RDisjL     = fn _ => "left disjunction right"
    , RDisjR     = fn _ => "right disjunction right"
    , RImp       = fn _ => "implication right"
-   , RIff       = fn _ => "iff right"
-   , RTop       = fn _ => ""
-   , RNot       = fn _ => "negation right"
    }
 
 fun tacticRenderName [a] (t : tactic a) : xbody = match t
    { LExact     = fn _ => <xml/>
    , LConj      = fn _ => <xml>(∧l)</xml>
    , LDisj      = fn _ => <xml>(∨l)</xml>
-   , LImp       = fn _ => <xml>(→l)</xml>
-   , LIff       = fn _ => <xml>(↔l)</xml>
+   , LImpProp   = fn _ => <xml>(→l)</xml>
+   , LImpConj   = fn _ => <xml>(→l)</xml>
+   , LImpDisj   = fn _ => <xml>(→l)</xml>
+   , LImpImp    = fn _ => <xml>(→l)</xml>
+   , LImpBot    = fn _ => <xml>(→l)</xml>
    , LBot       = fn _ => <xml></xml>
-   , LTop       = fn _ => <xml></xml>
-   , LNot       = fn _ => <xml>(¬l)</xml>
-   , LContract  = fn _ => <xml></xml>
-   , LWeaken    = fn _ => <xml></xml>
    , RExact     = fn _ => <xml></xml>
    , RConj      = fn _ => <xml>(∧r)</xml>
    , RDisjL     = fn _ => <xml>(∨r<sub>1</sub>)</xml>
    , RDisjR     = fn _ => <xml>(∨r<sub>2</sub>)</xml>
    , RImp       = fn _ => <xml>(→r)</xml>
-   , RIff       = fn _ => <xml>(↔r)</xml>
-   , RTop       = fn _ => <xml></xml>
-   , RNot       = fn _ => <xml>(¬r)</xml>
    }
 
 con end_user_failure = variant [UpdateFailure = unit, ParseFailure = unit]
@@ -171,21 +162,14 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
                     Prop _ => makePending (make [#LExact] i)
                   | Conj _ => makePending (make [#LConj] (i, 0))
                   | Disj _ => makePending (make [#LDisj] (i, 0, 1))
-                  | Imp  _ => makePending (make [#LImp] (i, 0, 1))
-                  | Iff  _ => makePending (make [#LIff] (i, 0))
-                  | Not  _ => makePending (make [#LNot] (i, 0))
-                  | Top    => makePending (make [#LTop] (i, 0))
+                  | Imp (Prop _, _) => makePending (make [#LImpProp] (i, 0))
+                  | Imp (Conj _, _) => makePending (make [#LImpConj] (i, 0))
+                  | Imp (Disj _, _) => makePending (make [#LImpDisj] (i, 0))
+                  | Imp (Imp _, _) => makePending (make [#LImpImp] (i, 0, 1))
+                  | Imp (Bot, _) => makePending (make [#LImpBot] (i, 0)) (* could also return () *)
                   | Bot    => makePending (make [#LBot] i)
                     }>{renderLogic True 0 x}</span></li></xml>
               in return bod
-              (* {case x of
-                      Imp _ => <xml><sup title="Contract" class={expand} onclick={fn _ =>
-                                  makePending (make [#LContract] (i, 0))
-                                }>#</sup></xml>
-                      | _ => <xml/>
-                    }
-                    XXX nontrivial proof obligation: can we avoid ever contracting?
-                    *)
               end
             ) s.Hyps;
     let val right =
@@ -200,9 +184,6 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
           | Conj _ => makePending (make [#RConj] (0, 1))
           | Disj _ => error <xml>impossible</xml>
           | Imp  _ => makePending (make [#RImp] 0)
-          | Iff  _ => makePending (make [#RIff] (0, 1))
-          | Not  _ => makePending (make [#RNot] 0)
-          | Top    => makePending (make [#RTop] ())
           | Bot    => return ()
             }>
         {renderLogic True 0 s.Goal}</span></xml>
@@ -235,38 +216,39 @@ fun refine showError (s : sequent) (t : tactic int) : transaction proof =
         (pre, (Disj (x,y)) :: post) =>
           pf (make [#LDisj] (i, xpGoal (append pre (x :: post)), xpGoal (append pre (y :: post))))
       | _ => err <xml>Not a disjunction</xml>
-   , LImp       = fn (i,_,_) =>
+   , LImpProp   = fn (i,_) =>
       case splitAt i s.Hyps of
-        (pre, (Imp (x,y)) :: post) =>
-          (* pf (make [#LImp] (i, xgGoal x, xpGoal (y :: append pre (Imp (x,y) :: post)))) *)
-          pf (make [#LImp] (i, xpgGoal (append pre post) x, xpGoal (append pre (y :: post))))
-      | _ => err <xml>Not an implication</xml>
-   , LIff       = fn (i,_) =>
+        (pre, (Imp (Prop x,y)) :: post) =>
+            if foldl (fn c z => z || (case c of
+                          Prop x' => x = x'
+                        | _ => False)) False s.Hyps
+              then pf (make [#LImpProp] (i, xpGoal (append pre (y :: post))))
+              else err <xml>Couldn't find matching hypothesis</xml>
+      | _ => err <xml>Not an implication with an atomic proposition hypothesis</xml>
+   , LImpConj   = fn (i,_) =>
       case splitAt i s.Hyps of
-        (pre, (Iff (x,y)) :: post) =>
-          pf (make [#LIff] (i, xpGoal (append pre (Imp (x,y) :: Imp (y,x) :: post))))
-      | _ => err <xml>Not an iff</xml>
+        (pre, (Imp (Conj (x1,x2),y)) :: post) =>
+          pf (make [#LImpConj] (i, xpGoal (append pre (Imp (x1, Imp (x2, y)) :: post))))
+      | _ => err <xml>Not an implication with conjunction hypothesis</xml>
+   , LImpDisj   = fn (i,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Imp (Disj (x1,x2),y)) :: post) =>
+          pf (make [#LImpDisj] (i, xpGoal (append pre (Imp (x1, y) :: Imp (x2, y) :: post))))
+      | _ => err <xml>Not an implication with disjunction hypothesis</xml>
+   , LImpImp    = fn (i,_,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Imp (Imp (x1,x2),y)) :: post) =>
+          pf (make [#LImpImp] (i, xpgGoal (append pre (Imp (x2, y) :: post)) (Imp (x1, x2)), xpGoal (append pre (y :: post))))
+      | _ => err <xml>Not an implication with implication hypothesis</xml>
+   , LImpBot    = fn (i,_) =>
+      case splitAt i s.Hyps of
+        (pre, (Imp (Bot,y)) :: post) =>
+          pf (make [#LImpBot] (i, xpGoal (append pre post)))
+      | _ => err <xml>Not an implication with bottom hypothesis</xml>
    , LBot       = fn i =>
       case nth s.Hyps i of
         Some Bot => pf (make [#LBot] i)
       | _ => err <xml>Not a bottom</xml>
-   , LTop       = fn (i,_) =>
-      case splitAt i s.Hyps of
-        (pre, Top :: post) =>
-          pf (make [#LTop] (i, xpGoal (append pre post)))
-      | _ => err <xml>Not a top</xml>
-   , LNot       = fn (i,_) =>
-      case splitAt i s.Hyps of
-        (pre, (Not x) :: post) =>
-          (* pf (make [#LNot] (i, xgGoal x)) *)
-          pf (make [#LNot] (i, xpgGoal (append pre post) x))
-      | _ => err <xml>Not a negation</xml>
-   , LContract  = fn (i,_) =>
-      case splitAt i s.Hyps of
-        (pre, x :: post) =>
-          pf (make [#LContract] (i, xpGoal (append pre (x :: x :: post))))
-      | _ => err <xml>Out of bounds</xml>
-   , LWeaken    = fn _ => err <xml>Unimplemented</xml>
    , RExact     = fn _ =>
       case s.Goal of
         Prop x => if foldl (fn c z => z || (case c of
@@ -295,19 +277,6 @@ fun refine showError (s : sequent) (t : tactic int) : transaction proof =
         Imp (x,y) =>
           pf (make [#RImp] (xpgGoal (snoc s.Hyps x) y))
       | _ => err <xml>Not an implication</xml>
-   , RIff       = fn _ =>
-      case s.Goal of
-        Iff (x,y) =>
-          pf (make [#RIff] (xgGoal (Imp (x,y)), xgGoal (Imp (y,x))))
-      | _ => err <xml>Not an iff</xml>
-   , RTop       = fn _ =>
-      case s.Goal of
-        Top => pf (make [#RTop] ())
-      | _ => error <xml>Not a top</xml>
-   , RNot       = fn _ =>
-      case s.Goal of
-        Not x => pf (make [#RNot] (xpgGoal (snoc s.Hyps x) Bot))
-      | _ => error <xml>Not a negation</xml>
    }
    end
 
@@ -433,9 +402,11 @@ and main () : transaction page =
       <body>
       <div class={page}>
         <p>This is a variant of Logitext for <i>propositional intuitionistic logic</i>.
-        In fact, it is contraction-free, so there exists a decision
-        procedure for statements in this calculus.  This implementation is not
-        backed by Coq, so there may be bugs; please let me know if you find any.</p>
+        The calculus we have implemented is
+        <a href="http://www.inf.kcl.ac.uk/staff/urbanc/Prover/G4ip.html">G4ip</a>,
+        which has the notable property that it does not need contraction to be complete.
+        This implementation is not backed by Coq, so there may be bugs;
+        please let me know if you find any.</p>
         <form>
           <textbox{#Goal}/><submit action={provingTrampoline} value="Prove"/>
         </form>
