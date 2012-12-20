@@ -1,30 +1,7 @@
-style proof
-style proofIsDone
-style proofIsIncomplete
-style proofIsPending
-style rules
-style inference
-style tagBox
-style tag
-style sibling
-style junct
-style viewport
-style commaList
-style relMark
-style offsetBox
-style working
-style page
-style errorStyle
-style turnstile
-style centerTable
-style offsetInner
-style green
-style primaryConnective
-style primaryExpr
-
 open Json
 open List
 open Common
+open Style
 
 task initialize = Haskell.initVanilla
 
@@ -218,7 +195,7 @@ fun renderSequent (showError : xbody -> transaction unit) (h : proof -> transact
                     }>{renderLogic True 0 x}</span></li></xml>
               in return bod
               end
-            ) s.Persistent;
+            ) s.Ephemeral;
     let val right =
       case s.Goal of
         Disj (x,y) => <xml><span class={junct}>

@@ -12,7 +12,7 @@ do
     pkill -f $NAME.exe
     (
         ghc -Wall -Werror --make -c ClassicalFOLFFI.hs && \
-        ghc -Wall -Werror --make -c LinearFFI.hs && \
+        #ghc -Wall -Werror --make -c LinearFFI.hs && \
         ghc -Wall -Werror --make -c IntuitionisticFFI.hs && \
         ghc -Wall -Werror --make -c haskell.c && \
         urweb $URWEB_FLAGS $NAME && \

@@ -1,13 +1,8 @@
 open Json
 open Style
-
-val declareCase = @@Variant.declareCase
-val typeCase = @@Variant.typeCase
+open Common
 
 task initialize = Haskell.initClassicalFOL
-
-fun activeCode m = <xml><active code={m; return <xml/>} /></xml>
-fun activate x m = <xml>{x}{activeCode m}</xml>
 
 fun renderName (f : string) : xbody =
   let val i = strcspn f "0123456789"
@@ -207,8 +202,6 @@ structure Proof = Json.Recursive(struct
 end)
 type proof = Proof.r
 
-fun andB a b = if a then b else False
-
 fun proofComplete (Proof.Rec p) : bool =
     match p {Goal = fn _ => False,
              Pending = fn _ => False,
@@ -344,11 +337,6 @@ fun renderProof showError (h : proof -> transaction unit) ((Proof.Rec r) : proof
 
 fun zapRefine (x : proof) : transaction string  = return (Haskell.refineClassicalFOL (toJson x))
 
-val head = <xml>
-    <link rel="stylesheet" type="text/css" href="http://localhost/logitext/style.css" />
-    <link rel="stylesheet" type="text/css" href="http://localhost/logitext/tipsy.css" />
-    </xml>
-
 val wSequent : xbody =
     <xml><span title="A statement of provability.  Γ ⊢ Δ states that given the
     hypotheses Γ, one of the conclusions Δ is provable.">sequent</span></xml>
@@ -463,7 +451,7 @@ fun tutorial () =
   return <xml>
   <head>
     <title>Interactive Tutorial of the Sequent Calculus</title>
-    {head}
+    {headTemplate}
   </head>
   <body>
     <div class={page}>
@@ -804,7 +792,7 @@ and proving goal =
   return <xml>
         <head>
           <title>Proving {[goal]}</title>
-          {head}
+          {headTemplate}
         </head>
         <body>
         <div class={page}>
@@ -832,7 +820,7 @@ and main () =
   return <xml>
       <head>
         <title>Logitext</title>
-          {head}
+          {headTemplate}
       </head>
       <body>
       <div class={page}>

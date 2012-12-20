@@ -25,12 +25,12 @@ errorModule s = error ("Linear." ++ s)
 data S = S { persistent :: [L], ephemeral :: [L], goal :: L }
     deriving (Show, Eq, Data, Typeable)
 
+-- All of these are *linear* variants (this is reflected syntactically)
 data L = Prop String
        | Conj L L
        | Disj L L
        | Imp L L
-       | Iff L L
-       | Not L
+       | Bang L
        | Top
        | Bot
     deriving (Show, Eq, Data, Typeable)
@@ -54,14 +54,18 @@ linearStyle = emptyDef
                 , P.opStart         = P.opLetter linearStyle
                 , P.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~,"
                 , P.reservedOpNames =
-                    ["(",")",".",",",";",
-                    "->", "→",
+                    ["(", ")", ",", ";",
                     "-o", "⊸",
-                    "<->", "↔", "<=>",
-                    "/\\","∧",
-                    "\\/","∨",
-                    "|-","⊢",
-                    "~","¬"]
+                    "!",
+                    "&",
+                    "?&", "⅋", -- what is conventional?
+                    "+", "⊕",
+                    "*", "⊗",
+                    -- "/\\","∧",
+                    -- "\\/","∨",
+                    "|-","⊢"
+                    -- "~","¬"
+                    ]
                 , P.reservedNames   =
                     [
                     "True","False","⊤","⊥",
@@ -117,10 +121,9 @@ sequent = try (S <$> commaSep expr <* choice [reservedOp ";"] <*> commaSep expr 
        <?> "sequent"
 
 table :: [[Operator String u Identity L]]
-table   = [ [prefix "~" Not, prefix "¬" Not ]
-          , [binary "/\\" Conj AssocLeft, binary "∧" Conj AssocLeft ]
+table   = [ [binary "/\\" Conj AssocLeft, binary "∧" Conj AssocLeft ]
           , [binary "\\/" Disj AssocLeft, binary "∨" Disj AssocLeft ]
-          , [binary "->" Imp AssocRight, binary "→" Imp AssocRight, binary "<->" Iff AssocRight, binary "↔" Iff AssocRight, binary "<=>" Iff AssocRight ]
+          , [binary "->" Imp AssocRight, binary "→" Imp AssocRight ]
           ]
 
 binary :: String -> (a -> a -> a) -> Assoc -> Operator String u Identity a

@@ -379,7 +379,7 @@ fun proving goal =
   return <xml>
         <head>
           <title>Proving {[goal]}</title>
-          {head}
+          {headTemplate}
         </head>
         <body>
         <div class={page}>
@@ -397,7 +397,7 @@ and main () : transaction page =
   return <xml>
       <head>
         <title>Logitext/Intuitionistic</title>
-          {head}
+          {headTemplate}
       </head>
       <body>
       <div class={page}>
