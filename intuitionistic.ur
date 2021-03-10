@@ -403,7 +403,7 @@ and main () : transaction page =
       <div class={page}>
         <p>This is a variant of Logitext for <i>propositional intuitionistic logic</i>.
         The calculus we have implemented is
-        <a href="http://www.inf.kcl.ac.uk/staff/urbanc/Prover/G4ip.html">G4ip</a>,
+        <a href="https://nms.kcl.ac.uk/christian.urban/Prover/G4ip.html">G4ip</a>,
         which has the notable property that it does not need contraction to be complete.
         This implementation is not backed by Coq, so there may be bugs;
         please let me know if you find any.</p>
