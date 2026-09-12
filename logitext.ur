@@ -603,7 +603,7 @@ fun tutorial () =
       of as implication, so to prove A → B, I can assume A as a hypothesis
       and prove B instead ("moving" the clause to the left side of the turnstile.)</p>
 
-      {workspace "Γ |- A -> A, Δ"}
+      {workspace "Γ |- A -> B, Δ"}
 
       <p>It's worth noting that, because this is classical logic, you can use
       any hypothesis generated this way for any other conclusion (a sort
