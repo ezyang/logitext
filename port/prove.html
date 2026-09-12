@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Proving</title>
+<link rel="stylesheet" type="text/css" href="style.css" />
+<link rel="stylesheet" type="text/css" href="tipsy.css" />
+</head>
+<body>
+<div class="page">
+<p>The <a href="http://en.wikipedia.org/wiki/Sequent_calculus">sequent calculus</a>
+is a form of backwards reasoning, with left and right inference rules which operate
+on sequents. Inference rules correspond closely to <i>clauses</i> in the sequent,
+so in Logitext (and other proof-by-pointing systems), all you need to do is click
+on a clause to see what inference rule is triggered. In some cases, an input box will pop up;
+enter a lower case expression like <i>z</i> or <i>f(x)</i>.
+(You can also choose to duplicate the rules by clicking "Contraction").
+If that made no sense to you, check out <a href="tutorial.html">the tutorial</a>.
+Or, you can <a href="index.html">return to main page...</a></p>
+<div id="workspace"></div>
+</div>
+<script src="kernel.js"></script>
+<script src="ui.js"></script>
+<script>
+(function () {
+  var goal = '';
+  try {
+    goal = new URLSearchParams(window.location.search).get('goal') || '';
+  } catch (e) {
+    var m = window.location.search.match(/[?&]goal=([^&]*)/);
+    if (m) goal = decodeURIComponent(m[1].replace(/\+/g, ' '));
+  }
+  document.title = 'Proving ' + goal;
+  LogitextUI.makeWorkspace(document.getElementById('workspace'), goal, null);
+  LogitextUI.init(document);
+})();
+</script>
+</body>
+</html>

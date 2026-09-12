@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Interactive Tutorial of the Sequent Calculus</title>
+<link rel="stylesheet" type="text/css" href="style.css" />
+<link rel="stylesheet" type="text/css" href="tipsy.css" />
+</head>
+<body>
+<div class="page">
+
+<p><i>This interactive tutorial will teach you how to use the
+sequent calculus, a simple set of rules with which you can use
+to show the truth of statements in first order logic.  It
+is geared towards anyone with some background in writing software
+for computers, with knowledge of basic boolean logic.</i></p>
+
+<h2>Introduction</h2>
+
+<p><i>Proving theorems is not for the mathematicians anymore: with
+theorem provers, it's now a job for the hacker.</i> — Martin Rinard</p>
+
+<p>I want to tell you about a neat system called the <i>sequent
+calculus</i>. It's a way of deducing whether or not a statement is
+true, but unlike proofs where the prover makes wild leaps
+of deduction from one statement to another, the sequent calculus
+always has a simple set of rules that is easy to check the
+validity of.</p>
+
+<p>An ordinary software engineer rarely has any need for proof,
+even though he deals with the issues of truth and falsehood on a
+daily basis.  His tool is boolean logic, where there are
+propositions, and they are either true or false, and even in the
+most complicated cases, the truth of a statement like "A or not A"
+can be checked by checking all of the possible cases using a truth
+table.</p>
+
+<p>However, as a tool for describing the world, Boolean logic is
+inflexible.  Suppose I claim "all men are mortal" and "Socrates is
+a man". I should then be able to deduce "Socrates is mortal";
+however, in Boolean logic, these three propositions have no
+relationship with each other.  Instead, I would like a way to say the word "all", a
+<i>quantifier</i>, is special in some sense.  It deserves to be
+an operator like AND/OR/NOT, and have some meaning assigned to it.</p>
+
+<p>However, now there's a problem: we can't figure out if a
+logical statement is true anymore by writing out the truth table.
+We can't check that a statement about "all" individuals is true by
+checking each individual one-by-one: there may be too many.  We need another way of
+reasoning about these statements, which are called statements
+in <i>first-order logic</i>.</p>
+
+<p>There are a lot of ways to think about first-order logic.  In
+this tutorial, we'll focus on one fundamental way of dealing with
+statements.  It will be a little unintuitive at times, but it will
+have the benefit of being precise, unambiguous and simple.  It is
+so precise and simple we can program it into a computer.  But it
+is also powerful enough to let us derive any true statement in
+first-order logic.  You should come out of this tutorial with
+an appreciation of how to do the symbolic manipulation of
+the sequent calculus.</p>
+
+<h2>How it works</h2>
+
+<p>The sequent calculus operates by a set of rules, not all of
+which are intuitively obvious.  Our goal is to <b>learn the rules
+of the game</b>, while at the same time becoming familiar with the
+<b>notation</b> and <b>terminology</b> which is conventionally
+used by mathematicians on pen and paper.</p>
+
+<p>All of the examples in this document are interactive.
+Technical terms are <span title="This is an explanation of the term.">underlined</span>; you can mouse over them for a
+definition.  You can reset your changes to an example by clicking
+the <span title="The name for the symbol ⊢, which separates hypotheses and conclusions in a sequent. It can be thought of as a kind of meta-implication, distinct from normal implication (→).">turnstile</span> symbol (⊢).</p>
+
+<p><b>Sequents and axioms.</b> The turnstile is always included
+in a <span title="A statement of provability. Γ ⊢ Δ states that given the hypotheses Γ, one of the conclusions Δ is provable.">sequent</span>, an example of which is displayed below.  You can
+interact with it by clicking on the A, which are <span title="A statement of logic. Inside a sequent, clauses are either hypotheses or conclusions.">clause</span>s.  You
+can read the sequent as "A implies A": the <span title="The name for the symbol ⊢, which separates hypotheses and conclusions in a sequent. It can be thought of as a kind of meta-implication, distinct from normal implication (→).">turnstile</span> can be
+thought of as a sort of <span title="Denoted by the arrow →, as in A → B, it means that if A is true, then B is true. Note that A → B and B → A are different statements.">implication</span>. In this example, when you
+click on the A, a bar appears on top, which indicates the sequent
+is <span title="That is, we can assume it is true without proof.">axiomatically true</span>.  The only axioms in this system
+are when some <span title="A statement of logic which has no logical connectives in it. Examples: A and P(x) are atomic clauses, but A → B is not.">atomic clause</span> appears on both sides of the
+<span title="The name for the symbol ⊢, which separates hypotheses and conclusions in a sequent. It can be thought of as a kind of meta-implication, distinct from normal implication (→).">turnstile</span>.  We're done when all sequents have bars
+over them.</p>
+
+<div data-workspace="A |- A"></div>
+
+<p><b>Hypotheses on the left.</b> Read the following <span title="A statement of provability. Γ ⊢ Δ states that given the hypotheses Γ, one of the conclusions Δ is provable.">sequent</span> as "Γ and A imply A."
+If you click on A, you will successfully complete the proof, but if you click
+on Γ, you will fail (because it is not a conclusion you are proving.) Γ (a capital Greek gamma)
+conventionally indicates hypotheses which are not relevant.</p>
+
+<div data-workspace="Γ, A |- A"></div>
+
+<p><b>Conclusions on the right.</b>  Read the following sequent as
+"A implies A or Δ". Δ (a capital Greek delta) conventionally
+indicates conclusions which are not relevant.  Notice that the
+comma means <span title="Denoted by the symbol ∧, conjunction is logical AND, which is true only when both sides are true.">conjunction</span> on the left but <b><span title="Denoted by the symbol ∨, disjunction is logical OR, which is true as long as one or another side is true (or both).">disjunction</span></b>
+on the right. One reason for this is that it makes it very easy to
+identify axiomatically true statements: if an <span title="A statement of logic which has no logical connectives in it. Examples: A and P(x) are atomic clauses, but A → B is not.">atomic clause</span> is
+on the left and on the right, then you're done.)</p>
+
+<div data-workspace="A |- A, Δ"></div>
+
+<p><b>Backwards deduction.</b>  Up until now, clicking on a <span title="A statement of logic. Inside a sequent, clauses are either hypotheses or conclusions.">clause</span> has either
+told us "this <span title="A statement of provability. Γ ⊢ Δ states that given the hypotheses Γ, one of the conclusions Δ is provable.">sequent</span> is axiomatically true" (completing the
+proof) or given us an error.  These make for very boring proofs:
+what about <span title="Any symbol which operates on logical propositions. Examples include conjunction, disjunction and implication. A clause with no logical operators is atomic.">logical operator</span>s?  When you click on a clause that contains
+a logical operator, the system generates one or more further <span title="Any sequent which needs to be proved in order to complete the proof tree. You can visually identify these as sequents on the top of the proof tree with no bar on top.">goal</span>s,
+which you need to prove.  It's its way of saying, "In order to show
+A ∨ B ⊢ A, B is true, you need to show A ⊢ A, B is true and B ⊢ A, B is true."
+Notice that in both of the subgoals, there no longer is a <span title="Denoted by the symbol ∨, disjunction is logical OR, which is true as long as one or another side is true (or both).">disjunction</span>; in
+sequent calculus, we use <span title="A style of logical inference, where you start with the desired conclusion and work backwards. Opposite of forward inference, where you start with axioms and then deduce statements.">backwards deduction</span> to get rid of logical
+operators until we have <span title="A statement of logic which has no logical connectives in it. Examples: A and P(x) are atomic clauses, but A → B is not.">atomic clause</span>s.</p>
+
+<div data-workspace="A \/ B |- A, B"></div>
+
+<p><b>Inference rules.</b>  Now, it is great that the computer has
+told you what new <span title="Any sequent which needs to be proved in order to complete the proof tree. You can visually identify these as sequents on the top of the proof tree with no bar on top.">goal</span>s you need to prove, but what if you
+wanted to write out the proof by hand?  You need to know what to
+write down.  Fortunately, for each <span title="Any symbol which operates on logical propositions. Examples include conjunction, disjunction and implication. A clause with no logical operators is atomic.">logical operator</span>, there are
+exactly two <span title="A rule which says what valid inferences are. An inference rule is specified by writing hypotheses, a horizontal bar, and then the valid conclusion. In backwards deduction, an inference rule says what you need to prove in order to show the current goal to be true.">inference rule</span>s which say what new goals are
+generated: one for when it's on the left side of the <span title="The name for the symbol ⊢, which separates hypotheses and conclusions in a sequent. It can be thought of as a kind of meta-implication, distinct from normal implication (→).">turnstile</span>
+(hypothesis), and one when it's on the right (conclusion).
+You applied the rule for left-<span title="Denoted by the symbol ∨, disjunction is logical OR, which is true as long as one or another side is true (or both).">disjunction</span> in the previous example:
+here is the rule written out in general.</p>
+
+<div class="proofIsDone"><div data-example="" data-goal="Γ, A \/ B |- Δ" data-tactic="LDisj" data-index="1"></div></div>
+
+<p>The Γ and Δ are placeholders for other hypotheses and conclusions:
+in the previous example Γ was empty, and Δ was "A, B" (two clauses).
+The text on the right of the bar indicates what rule was
+applied: the first letter indicates the logical operator involved,
+and the second letter indicates <b>l</b>eft or <b>r</b>ight.
+Together, axioms and inference rules make up the entirety of our
+deductive system: they are <i>all you need</i>. We'll now go on a
+tour of all the inference rules in first-order logic.</p>
+
+<p><b>Trivial rules.</b>  Recall that all of the hypotheses on the
+left side of the <span title="The name for the symbol ⊢, which separates hypotheses and conclusions in a sequent. It can be thought of as a kind of meta-implication, distinct from normal implication (→).">turnstile</span> can be thought of as ANDed together, and
+the conclusions on the right side ORed together.  Thus, if I have a hypothesis
+which is an AND, or a conclusion which is an OR, we can very easily get
+rid of the logical operator.</p>
+
+<table class="centerTable">
+<tr>
+<td><div data-workspace="Γ, A /\ B |- A, Δ"></div></td>
+<td><div data-workspace="Γ, A |- A \/ B, Δ"></div></td>
+</tr>
+</table>
+
+<p><b>Meta-implication rule.</b>  The <span title="The name for the symbol ⊢, which separates hypotheses and conclusions in a sequent. It can be thought of as a kind of meta-implication, distinct from normal implication (→).">turnstile</span> itself can be thought
+of as implication, so to prove A → B, I can assume A as a hypothesis
+and prove B instead ("moving" the clause to the left side of the turnstile.)</p>
+
+<div data-workspace="Γ |- A -> A, Δ"></div>
+
+<p>It's worth noting that, because this is classical logic, you can use
+any hypothesis generated this way for any other conclusion (a sort
+of "bait and switch").  It's worth taking some time to convince yourself why this
+is allowed, since it shows up in other <span title="A rule which says what valid inferences are. An inference rule is specified by writing hypotheses, a horizontal bar, and then the valid conclusion. In backwards deduction, an inference rule says what you need to prove in order to show the current goal to be true.">inference rule</span>s too.  Here is a simple example of this:</p>
+
+<div data-workspace="|- (A -> B) \/ A"></div>
+
+<p><b>Branching rules.</b>  What about <span title="Denoted by the symbol ∧, conjunction is logical AND, which is true only when both sides are true.">conjunction</span>, <span title="Denoted by the symbol ∨, disjunction is logical OR, which is true as long as one or another side is true (or both).">disjunction</span> and <span title="Denoted by the arrow →, as in A → B, it means that if A is true, then B is true. Note that A → B and B → A are different statements.">implication</span>
+on the other side of the <span title="The name for the symbol ⊢, which separates hypotheses and conclusions in a sequent. It can be thought of as a kind of meta-implication, distinct from normal implication (→).">turnstile</span>?  All of these generate <i>two</i> new
+<span title="Any sequent which needs to be proved in order to complete the proof tree. You can visually identify these as sequents on the top of the proof tree with no bar on top.">goal</span>s, both of which need to be proved.</p>
+
+<table class="centerTable">
+<tr>
+<td><div data-workspace="Γ, A, B |- A /\ B, Δ"></div></td>
+<td><div data-workspace="Γ, A \/ B |- A, B, Δ"></div></td>
+</tr>
+<tr>
+<td colspan="2"><div data-workspace="Γ, A, A -> B |- B, Δ"></div></td>
+</tr>
+</table>
+
+<p><b>Negation rules.</b> Negation is a strange operator: applying its inference
+rule moves the un-negated clause to the other side of the turnstile.</p>
+
+<table class="centerTable">
+<tr>
+<td><div data-workspace="Γ, A, ~A |- Δ"></div></td>
+<td><div data-workspace="Γ |- ~A, A, Δ"></div></td>
+</tr>
+</table>
+
+<p><b>Quantifier rules.</b> The rules for the <span title="Any logical operator which binds a new variable. For all (∀) and exists (∃) are the two quantifiers in first order logic.">quantifier</span>s are
+quite interesting.  Which of these four statements is true?</p>
+
+<table class="centerTable">
+<tr>
+<td><div data-workspace="Γ, forall x. P(x) |- P(a), Δ"></div></td>
+<td><div data-workspace="Γ, P(a) |- forall x. P(x), Δ"></div></td>
+</tr>
+<tr>
+<td><div data-workspace="Γ, exists x. P(x) |- P(a), Δ"></div></td>
+<td><div data-workspace="Γ, P(a) |- exists x. P(x), Δ"></div></td>
+</tr>
+</table>
+
+<p>You should only be able to prove two of the four: forall left
+(∀l) and exists right (∃r).  In both cases, the system asks you
+for an individual to instantiate the variable with.  This variable
+can be anything, including variables which already exist in the
+expression.  Intuitively, it should make sense why these are the
+two true statements: in the case of forall, if I know something
+about all individuals, I know something about a particular
+individual too; in the case of exists, in order to show the
+existence of something, all you need to do is produce it.  The
+"particular individual" and "the individual which exists" are
+precisely what the system asks you for.</p>
+
+<p>In the case of the forall right (∀r) rule and the exists left
+(∃l), the system picks a variable for you. But it doesn't pick any
+old variable: the variable it picks is required to be distinct from
+anything pre-existing in the sequent: this is often referred to as
+the "no free occurrence" rule.  One intuition for why the system
+is constrained in this way is to consider this: it is generally
+harder to prove something is true for all individuals than it is
+to show it is true for only one.</p>
+
+<p>In practice, this means is that the order you apply tactics is
+important:</p>
+
+<div data-workspace="(forall x. P(x)) |- (forall x. P(x))"></div>
+
+<p>If you start off with the left-forall, when you apply the
+right-forall, the system will always give you something that
+doesn't match what you originally picked, and then you are stuck!
+But it is easy to complete in the other direction.</p>
+
+<p>One last note: the "contraction" button duplicates a hypothesis
+or goal, so you can reuse it later (say, you want to say that
+because all people are mortal, then Bob is mortal, AND Sally is
+mortal).  Use of this <i>structural rule</i> may be critical to
+certain proofs; you will get stuck otherwise.  (This rule is
+somewhat paradoxically called contraction because when you read the
+rule in the normal top-down direction, it "contracts" two identical
+hypotheses into a single one.)</p>
+
+<p><b>Summary.</b> Here are all the inference rules for first order logic:</p>
+
+<table class="rules green">
+<tr>
+<td colspan="2"><div data-example="" data-goal="Γ, A |- A, Δ" data-tactic="LExact" data-index="1"></div></td>
+</tr>
+<tr>
+<td><div data-example="" data-goal="Γ, ~A |- Δ" data-tactic="LNot" data-index="1"></div></td>
+<td><div data-example="" data-goal="Γ |- ~A, Δ" data-tactic="RNot" data-index="0"></div></td>
+</tr>
+<tr>
+<td><div data-example="" data-goal="Γ, A /\ B |- Δ" data-tactic="LConj" data-index="1"></div></td>
+<td><div data-example="" data-goal="Γ |- A /\ B, Δ" data-tactic="RConj" data-index="0"></div></td>
+</tr>
+<tr>
+<td><div data-example="" data-goal="Γ, A \/ B |- Δ" data-tactic="LDisj" data-index="1"></div></td>
+<td><div data-example="" data-goal="Γ |- A \/ B, Δ" data-tactic="RDisj" data-index="0"></div></td>
+</tr>
+<tr>
+<td><div data-example="" data-goal="Γ, A -> B |- Δ" data-tactic="LImp" data-index="1"></div></td>
+<td><div data-example="" data-goal="Γ |- A -> B, Δ" data-tactic="RImp" data-index="0"></div></td>
+</tr>
+<tr>
+<td><div data-example="" data-goal="Γ, forall x. P(x) |- Δ" data-tactic="LForall" data-index="1" data-term="z"></div></td>
+<td><div data-example="" data-goal="Γ |- forall x. P(x), Δ" data-tactic="RForall" data-index="0"></div></td>
+</tr>
+<tr>
+<td><div data-example="" data-goal="Γ, exists x. P(x) |- Δ" data-tactic="LExists" data-index="1"></div></td>
+<td><div data-example="" data-goal="Γ |- exists x. P(x), Δ" data-tactic="RExists" data-index="0" data-term="z"></div></td>
+</tr>
+</table>
+
+<p>With these <span title="A rule which says what valid inferences are. An inference rule is specified by writing hypotheses, a horizontal bar, and then the valid conclusion. In backwards deduction, an inference rule says what you need to prove in order to show the current goal to be true.">inference rule</span>s, you have the capability to
+prove everything in first-order logic.</p>
+
+<h2>Exercises</h2>
+
+<div data-workspace="A /\ B |- B /\ A"></div>
+<div data-workspace="A \/ B |- B \/ A"></div>
+<div data-workspace="~(A \/ B) -> ~A /\ ~B"></div>
+<div data-workspace="(forall x. P(x)) /\ (forall x. Q(x)) -> forall y. P(y) /\ Q(y)"></div>
+
+<p>Hint: these two require <span title="...which duplicates a hypothesis or conclusion and lets you use it twice, with different instantiations of the variables.">contraction</span>.</p>
+
+<div data-workspace="|- exists x. P(x) -> forall y. P(y)"></div>
+<div data-workspace="forall x. (P(x)->P(f(x))) |- forall x. (P(x) -> P(f(f(x))))"></div>
+
+<h2>Conclusion</h2>
+
+<p>I want to leave you with some parting words about why I find
+this topic interesting.</p>
+
+<p>First-order logic is well worth studying, because it is a
+simple yet powerful tool for modelling the world and writing
+specifications and constraints.  These constraints can be given to
+tools called SMT solvers, which can then automatically determine
+how to satisfy these constraints.  You can't do that with plain
+English!</p>
+
+<p>A common complaint with a formal systems like the sequent
+calculus is the "I clicked around and managed to prove this, but
+I'm not really sure what happened!" This is what Martin means by
+the hacker mentality: it is now possible for people to prove
+things, even when they don't know what they're doing.  The
+computer will ensure that, in the end, they will have gotten it
+<i>right</i>.  (You don't even have to test it, and there are no
+bugs!  Of course, it does help to know what you are doing.)  Writ
+large, working with this demo is like working with a proof
+assistant.  If you're interested in tackling more complicated
+problems than presented here, I suggest checking out a textbook
+like <a href="http://www.cis.upenn.edu/~bcpierce/sf/">Software
+Foundations</a>.</p>
+
+<p>One primary motivation for this tutorial, which constrained the
+user interface design considerably, was to demonstrate the
+notation and concepts relied upon heavily in the academic type
+theory literature.  As an undergraduate, I always found inference
+rules to be some of the most intimidating parts of academic papers
+in programming languages.  Studying how these conventions work in
+a simpler setting is a key step on the way to being able to "read
+the Greek." While some of the notational choices may seem
+hair-brained to a modern viewer, overall the system is very well
+optimized.  Inference rules are a remarkably compact and efficient
+way to describe many types of systems: the space savings are
+analogous to using BNFs to specify grammars.</p>
+
+<p>Overall, my hope is that this tutorial has helped you take your
+first step into the fascinating world of formal systems, type
+theory and theorem proving.  Return to <a href="index.html">the main
+page</a>, and try coming up with some theorems of your own!</p>
+
+<p><i>Colophon.</i> This tutorial is a static port: proofs are checked
+locally in your browser by a small audited JavaScript kernel, with no
+server needed. The original version was powered by
+<a href="http://coq.inria.fr/">Coq</a>,
+<a href="http://www.haskell.org">Haskell</a> and
+<a href="http://www.impredicative.com/ur/">Ur/Web</a>.</p>
+
+</div>
+<script src="kernel.js"></script>
+<script src="ui.js"></script>
+<script>LogitextUI.init(document);</script>
+</body>
+</html>

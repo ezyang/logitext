@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Logitext</title>
+<link rel="stylesheet" type="text/css" href="style.css" />
+<link rel="stylesheet" type="text/css" href="tipsy.css" />
+</head>
+<body>
+<div class="page">
+<p>Logitext is an educational proof assistant for <i>first-order classical
+logic</i> using the <i>sequent calculus</i>, in the same tradition as Jape, Pandora, Panda and Yoda.
+It is intended to assist students who are learning <i>Gentzen trees</i>
+as a way of structuring derivations of logical statements.
+This is a static port: proofs are checked entirely in your browser by a
+small audited JavaScript kernel, with no server needed. The original
+server-backed version interfaced with <a href="http://coq.inria.fr/">Coq</a>;
+get the source at <a href="https://github.com/ezyang/logitext">GitHub</a>.</p>
+<p>To get started, check out the <a href="tutorial.html">tutorial</a>, or dive right
+in and type in something to prove:</p>
+<form action="prove.html" method="get">
+<input type="text" name="goal" /><input type="submit" value="Prove" />
+</form>
+<p>Here are some examples:</p>
+<ul>
+<li><a href="prove.html?goal=((A%20-%3E%20B)%20-%3E%20A)%20-%3E%20A">((A -&gt; B) -&gt; A) -&gt; A</a></li>
+<li><a href="prove.html?goal=A%20%5C%2F%20~A">A \/ ~A</a></li>
+<li><a href="prove.html?goal=(forall%20x%2C%20P(x))%20-%3E%20(exists%20x%2C%20P(x))">(forall x, P(x)) -&gt; (exists x, P(x))</a></li>
+</ul>
+<p>Logitext is case-sensitive: capitalized identifiers represent
+propositions and predicates, while lower-case identifiers
+represent functions and elements of the universe.</p>
+</div>
+</body>
+</html>
