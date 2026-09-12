@@ -1,4 +1,4 @@
-allow url http://localhost/logitext/style.css
+allow url /logitext/style.css
 rewrite all Linear/*
 library haskell
 library meta

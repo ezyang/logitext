@@ -6,8 +6,8 @@ benignEffectful Js.tip
 benignEffectful Js.tipInner
 benignEffectful Js.tipHTML
 benignEffectful Js.clearTooltips
-script http://localhost/logitext/jquery.js
-script http://localhost/logitext/jquery.tipsy.js
-script http://localhost/logitext/ffi.js
-allow url http://localhost/logitext/tipsy.css
+script /logitext/jquery.js
+script /logitext/jquery.tipsy.js
+script /logitext/ffi.js
+allow url /logitext/tipsy.css
 ffi js

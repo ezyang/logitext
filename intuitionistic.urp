@@ -1,4 +1,4 @@
-allow url http://localhost/logitext/style.css
+allow url /logitext/style.css
 allow url https://nms.kcl.ac.uk/christian.urban/Prover/G4ip.html
 library haskell
 library meta
