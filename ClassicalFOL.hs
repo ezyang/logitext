@@ -13,6 +13,8 @@ import Data.IORef
 import Data.Typeable
 import Data.Functor.Identity
 import Data.Data hiding (Prefix,Infix)
+import Data.Char (isLetter, isAlphaNum)
+import Data.Generics (listify)
 import qualified Data.ByteString.Lazy as Lazy
 import Control.Applicative hiding ((<|>),many)
 import Control.Exception hiding (try)
@@ -469,10 +471,47 @@ mkFreeForall f = mkMsetForall mkPredType (freePred f)
 countFree :: Free -> Int
 countFree (Free x y) = Map.size x + Map.size y
 
+-- SECURITY: every Pred/Fun/binder name in a proof is rendered verbatim into
+-- coqtop's command stream (Coq.render (Atom n) = n) and the command is then
+-- terminated with ".\n".  The concrete-syntax parser (folStyle) restricts
+-- identifiers to a safe charset, but the JSON RPC in ClassicalFOLFFI decodes a
+-- whole proof whose names are arbitrary Strings and never pass that parser.
+-- A name containing '.', a newline or ')' can close the Goal command and
+-- inject arbitrary Coq vernacular -- e.g. `Declare ML Module`, which loads a
+-- native plugin, i.e. remote code execution.  Reject any name that is not a
+-- legal folStyle identifier before rendering.  isLetter/isAlphaNum are the
+-- same Unicode-aware predicates Parsec's letter/alphaNum use, so legitimate
+-- symbolic identifiers (e.g. a hypothesis literally named "\915") still pass.
+validName :: String -> Bool
+validName []     = False
+validName (c:cs) = start c && all rest cs
+  where start x = isLetter x || x == '_'                    -- folStyle identStart
+        rest  x = isAlphaNum x || x == '_' || x == '\''      -- folStyle identLetter
+
+-- All names anywhere in a proof.  We listify at the U and L type level (never
+-- at String, whose [Char]/tail structure would yield spurious sub-strings):
+-- every Fun name from every U, and every Pred/Forall/Exists name from every L.
+-- This covers the sequents *and* the terms embedded in Q tactics (Cut's L,
+-- lForall/rExists' U), all of which reach Coq via qToTac.
+proofNames :: P -> [String]
+proofNames p = [f | Fun f _ <- listify (const True :: U -> Bool) p]
+            ++ concatMap fromL (listify (const True :: L -> Bool) p)
+  where fromL (Pred pp _)  = [pp]
+        fromL (Forall v _) = [v]
+        fromL (Exists v _) = [v]
+        fromL _            = []
+
+-- Throws (caught by the FFI as a per-request failure) if any name is illegal.
+checkNames :: P -> IO ()
+checkNames p = case filter (not . validName) (proofNames p) of
+    []      -> return ()
+    (bad:_) -> errorModule ("checkNames: illegal identifier in proof: " ++ show bad)
+
 refine :: P -> IO P
-refine p@(Goal s)      = refine' s p
-refine p@(Pending s _) = refine' s p
-refine p@(Proof s _)   = refine' s p
+refine p = checkNames p >> go p
+  where go q@(Goal s)      = refine' s q
+        go q@(Pending s _) = refine' s q
+        go q@(Proof s _)   = refine' s q
 
 -- the S is kind of redundant but makes my life easier
 refine' :: S -> P -> IO P
