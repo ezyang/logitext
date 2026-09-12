@@ -407,11 +407,19 @@ parseResponse raw = do
     -- ensure that the errors get sequenced correctly
     resp <- maybeError "parseResponse: no response found" (findChild (qn "normalresponse") (Element (qn "fake") [] raw Nothing))
     (\s -> when (s == "no-more-subgoals") (Left NoMoreSubgoals)) `traverse_` findAttr (qn "status") resp
-    hypList <- mapMaybe extractHyp
-             . rights
-             . map (C.parseTerm "hypothesis" . strContent)
-             . findChildren (qn "hyp")
-        <$> maybeError "parseResponse: no hyps found" (findChild (qn "hyps") resp)
+    -- Coq's PGIP printer (printing/printer.ml) emits one <hyp type="var">
+    -- per hypothesis as a *direct* child of <normalresponse>: there is no
+    -- <hyps> wrapper, and a goal with no hypotheses (e.g. the response to
+    -- the initial "Goal ...") emits no <hyp> at all. Requiring a wrapper
+    -- made every response fail with "no hyps found". Still accept a
+    -- wrapper if some future Coq introduces one.
+    let hypElems = maybe (findChildren (qn "hyp") resp)
+                         (findChildren (qn "hyp"))
+                         (findChild (qn "hyps") resp)
+        hypList = mapMaybe extractHyp
+                . rights
+                . map (C.parseTerm "hypothesis" . strContent)
+                $ hypElems
     result <- strContent <$> maybeError "parseResponse: no goal found" (findChild (qn "goal") resp)
     -- trace result $ return ()
     goal <- eitherError "parseResponse: " (C.parseTerm "goal" result)
